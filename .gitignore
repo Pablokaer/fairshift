@@ -1,0 +1,17 @@
+node_modules/
+.expo/
+dist/
+web-build/
+*.log
+.env
+.env.local
+supabase/.env
+supabase/.branches
+supabase/.temp
+app/.env
+app/ios/
+app/android/
+e2e/test-results/
+e2e/playwright-report/
+coverage/
+.DS_Store

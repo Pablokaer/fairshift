@@ -1,0 +1,4 @@
+packages:
+  - app
+  - tests
+  - e2e

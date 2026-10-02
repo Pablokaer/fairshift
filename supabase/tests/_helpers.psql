@@ -1,0 +1,179 @@
+-- Test helpers. Included by every test file *inside* its transaction, so
+-- everything here is rolled back at the end of the file.
+create extension if not exists pgtap with schema extensions;
+set search_path = public, extensions;
+
+create schema tests;
+create table tests.ids (k text primary key, v uuid not null);
+
+create function tests.id(p_key text) returns uuid language sql stable as $$
+  select v from tests.ids where k = p_key;
+$$;
+
+create function tests.key(p_id uuid) returns text language sql stable as $$
+  select k from tests.ids where v = p_id;
+$$;
+
+create function tests.remember(p_key text, p_id uuid) returns uuid language sql as $$
+  insert into tests.ids (k, v) values (p_key, p_id)
+  on conflict (k) do update set v = excluded.v returning v;
+$$;
+
+create function tests.new_user(p_key text, p_name text default null) returns uuid language plpgsql as $$
+declare v uuid := gen_random_uuid();
+begin
+  insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
+                          raw_user_meta_data, created_at, updated_at)
+  values (v, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
+          p_key || '@test.local', '', now(), jsonb_build_object('display_name', coalesce(p_name, p_key)), now(), now());
+  return tests.remember(p_key, v);
+end $$;
+
+-- Run p_sql as user p_who (RLS + auth.uid() apply). $1/$2/$3 are bound to a1/a2/a3.
+create function tests.act(p_who text, p_sql text, a1 uuid default null, a2 text default null, a3 text default null)
+returns void language plpgsql as $$
+begin
+  perform set_config('request.jwt.claims', json_build_object('sub', tests.id(p_who), 'role', 'authenticated')::text, true);
+  perform set_config('role', 'authenticated', true);
+  execute p_sql using a1, a2, a3;
+  perform set_config('role', 'postgres', true);
+  perform set_config('request.jwt.claims', '', true);
+end $$;
+
+create function tests.val(p_who text, p_sql text, a1 uuid default null, a2 text default null, a3 text default null)
+returns text language plpgsql as $$
+declare v text;
+begin
+  perform set_config('request.jwt.claims', json_build_object('sub', tests.id(p_who), 'role', 'authenticated')::text, true);
+  perform set_config('role', 'authenticated', true);
+  execute p_sql into v using a1, a2, a3;
+  perform set_config('role', 'postgres', true);
+  perform set_config('request.jwt.claims', '', true);
+  return v;
+end $$;
+
+-- An org with an admin ('admin') and staff s1..sN who are all eligible for queue 'q'.
+create function tests.fixture(p_staff int, p_policy jsonb default '{}'::jsonb) returns void language plpgsql as $$
+declare
+  v_org uuid;
+  v_q uuid;
+begin
+  perform tests.new_user('admin', 'Admin');
+  perform set_config('request.jwt.claims', json_build_object('sub', tests.id('admin'), 'role', 'authenticated')::text, true);
+  v_org := public.create_organization('General Hospital', 'America/Sao_Paulo');
+  v_q := public.create_queue(v_org, 'ICU Nurses', '', p_policy);
+  perform set_config('request.jwt.claims', '', true);
+  perform tests.remember('org', v_org);
+  perform tests.remember('q', v_q);
+  for i in 1 .. p_staff loop
+    perform tests.new_user('s' || i, 'Staff ' || i);
+    insert into public.memberships (org_id, user_id, role) values (v_org, tests.id('s' || i), 'staff');
+    insert into public.queue_members (queue_id, org_id, user_id) values (v_q, v_org, tests.id('s' || i));
+  end loop;
+end $$;
+
+create function tests.second_queue(p_key text, p_policy jsonb default '{}'::jsonb) returns uuid language plpgsql as $$
+declare v_q uuid;
+begin
+  perform set_config('request.jwt.claims', json_build_object('sub', tests.id('admin'), 'role', 'authenticated')::text, true);
+  v_q := public.create_queue(tests.id('org'), p_key, '', p_policy);
+  perform set_config('request.jwt.claims', '', true);
+  perform tests.remember(p_key, v_q);
+  insert into public.queue_members (queue_id, org_id, user_id)
+  select v_q, tests.id('org'), user_id from public.memberships where org_id = tests.id('org') and role = 'staff';
+  return v_q;
+end $$;
+
+create function tests.join(p_who text, p_queue text default 'q') returns void language sql as $$
+  select tests.act(p_who, 'select public.join_queue($1)', tests.id(p_queue));
+$$;
+
+create function tests.join_range(p_from int, p_to int, p_queue text default 'q') returns void language plpgsql as $$
+begin
+  for i in p_from .. p_to loop
+    perform tests.join('s' || i, p_queue);
+  end loop;
+end $$;
+
+-- Create (and by default publish) a shift starting p_offset from now.
+create function tests.shift(p_key text, p_offset interval, p_duration interval default interval '12 hours',
+                            p_publish boolean default true, p_queue text default 'q')
+returns uuid language plpgsql as $$
+declare v uuid;
+begin
+  perform set_config('request.jwt.claims', json_build_object('sub', tests.id('admin'), 'role', 'authenticated')::text, true);
+  select x into v from public.create_shifts(tests.id(p_queue),
+    jsonb_build_array(jsonb_build_object('starts_at', now() + p_offset, 'ends_at', now() + p_offset + p_duration,
+                                         'unit', 'Unit ' || p_key)),
+    p_publish) x;
+  perform set_config('request.jwt.claims', '', true);
+  return tests.remember(p_key, v);
+end $$;
+
+-- Key of the person currently holding the open offer for a shift (null if none).
+create function tests.offered_to(p_shift text) returns text language sql stable as $$
+  select tests.key(user_id) from public.offers where shift_id = tests.id(p_shift) and outcome is null;
+$$;
+
+create function tests.offer_id(p_shift text) returns uuid language sql stable as $$
+  select id from public.offers where shift_id = tests.id(p_shift) and outcome is null;
+$$;
+
+create function tests.accept(p_who text, p_shift text) returns void language sql as $$
+  select tests.act(p_who, 'select public.accept_offer($1)', tests.offer_id(p_shift));
+$$;
+
+create function tests.decline(p_who text, p_shift text) returns void language sql as $$
+  select tests.act(p_who, 'select public.decline_offer($1)', tests.offer_id(p_shift));
+$$;
+
+-- Simulate the acceptance window running out, then run the scheduler.
+create function tests.timeout(p_shift text) returns void language plpgsql as $$
+declare v_q uuid;
+begin
+  update public.offers set offered_at = clock_timestamp() - interval '31 minutes',
+                           expires_at = clock_timestamp() - interval '1 second'
+  where shift_id = tests.id(p_shift) and outcome is null;
+  select queue_id into v_q from public.shifts where id = tests.id(p_shift);
+  perform private.process_queue(v_q);
+end $$;
+
+create function tests.tick(p_queue text default 'q') returns void language plpgsql as $$
+begin
+  perform private.process_queue(tests.id(p_queue));
+end $$;
+
+-- Move a shift into the past/present (start p_start_ago ago) without tripping checks.
+create function tests.shift_started(p_shift text, p_start_ago interval, p_duration interval default interval '12 hours')
+returns void language sql as $$
+  update public.shifts set starts_at = now() - p_start_ago, ends_at = now() - p_start_ago + p_duration
+  where id = tests.id(p_shift);
+$$;
+
+-- Position/state as seen by the person themselves.
+create function tests.pos(p_who text, p_queue text default 'q') returns int language sql as $$
+  select tests.val(p_who, 'select queue_position::text from public.my_queues() where queue_id = $1', tests.id(p_queue))::int;
+$$;
+
+create function tests.state(p_who text, p_queue text default 'q') returns text language sql as $$
+  select tests.val(p_who, 'select state from public.my_queues() where queue_id = $1', tests.id(p_queue));
+$$;
+
+-- Ordered list of keys currently in the queue (waiting + paused), by position.
+create function tests.order_of(p_queue text default 'q') returns text language sql stable as $$
+  select coalesce(string_agg(tests.key(user_id), ',' order by seq), '')
+  from public.queue_entries where queue_id = tests.id(p_queue) and closed_at is null and status in ('waiting', 'paused');
+$$;
+
+create function tests.audit_count(p_type text, p_subject text default null) returns int language sql stable as $$
+  select count(*)::int from public.audit_events
+  where type = p_type and (p_subject is null or subject_id = tests.id(p_subject));
+$$;
+
+create function tests.notif_count(p_who text, p_type text) returns int language sql stable as $$
+  select count(*)::int from public.notifications where user_id = tests.id(p_who) and type = p_type;
+$$;
+
+grant usage on schema tests to authenticated;
+grant select on tests.ids to authenticated;
+grant execute on all functions in schema tests to authenticated;
