@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: pnpm install --frozen-lockfile
+      - name: Start Supabase (migrations + seed)
+        run: |
+          cp supabase/.env.example supabase/.env
+          supabase start
+      - name: Database rule tests (pgTAP)
+        run: supabase test db
+      - name: Concurrency + API tests
+        run: pnpm test:concurrency && pnpm test:api
+      - name: App typecheck + unit tests
+        run: pnpm --filter @fairshift/app typecheck && pnpm test:app
+      - name: Web build
+        run: |
+          cp app/.env.example app/.env
+          pnpm --filter @fairshift/app export:web
+      - name: E2E (web)
+        run: |
+          supabase db reset
+          pnpm --filter @fairshift/e2e exec playwright install --with-deps chromium
+          pnpm test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: e2e/test-results

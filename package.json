@@ -7,14 +7,18 @@
   "scripts": {
     "db:start": "supabase start",
     "db:reset": "supabase db reset",
+    "seed": "supabase db reset",
     "test:db": "supabase test db",
     "test:concurrency": "pnpm --filter @fairshift/tests test:concurrency",
     "test:api": "pnpm --filter @fairshift/tests test:api",
     "test:app": "pnpm --filter @fairshift/app test",
     "test:e2e": "pnpm --filter @fairshift/e2e test",
     "test": "pnpm test:db && pnpm test:concurrency && pnpm test:api && pnpm test:app",
-    "seed": "pnpm --filter @fairshift/tests seed",
-    "typecheck": "pnpm -r typecheck",
-    "gen:types": "supabase gen types typescript --local > app/src/lib/database.types.ts"
+    "build:web": "pnpm --filter @fairshift/app export:web",
+    "typecheck": "pnpm --filter @fairshift/app typecheck && pnpm --filter @fairshift/tests typecheck",
+    "gen:types": "supabase gen types typescript --local > app/src/lib/database.types.ts",
+    "web": "pnpm --filter @fairshift/app web",
+    "ios": "pnpm --filter @fairshift/app ios",
+    "android": "pnpm --filter @fairshift/app android"
   }
 }

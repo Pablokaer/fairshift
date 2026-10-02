@@ -5,7 +5,6 @@
   "scripts": {
     "test:concurrency": "vitest run concurrency",
     "test:api": "vitest run api",
-    "seed": "tsx seed/seed.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

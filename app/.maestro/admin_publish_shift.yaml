@@ -1,0 +1,24 @@
+appId: app.fairshift.mobile
+---
+- launchApp:
+    clearState: true
+- tapOn:
+    id: "email"
+- inputText: "admin@demo.fairshift.app"
+- tapOn:
+    id: "password"
+- inputText: "Password123!"
+- tapOn:
+    id: "sign-in"
+- extendedWaitUntil:
+    visible: "Admin"
+    timeout: 20000
+- tapOn: "Admin"
+- tapOn: "Shifts|Plantões"
+- tapOn: "Drafts|Rascunhos"
+- tapOn:
+    id: "admin-shift-ICU 2"
+- tapOn:
+    id: "publish-selected"
+- tapOn: "Open|Abertos"
+- assertVisible: ".*(Offered to|Oferecido a) Ana Souza.*"

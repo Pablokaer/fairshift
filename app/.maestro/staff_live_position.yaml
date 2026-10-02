@@ -1,0 +1,18 @@
+# Run on a second simulator/emulator while staff_accept_offer.yaml runs on the first:
+# nurse02's position changes from #2 to #1 without any refresh.
+appId: app.fairshift.mobile
+---
+- launchApp:
+    clearState: true
+- tapOn:
+    id: "email"
+- inputText: "nurse02@demo.fairshift.app"
+- tapOn:
+    id: "password"
+- inputText: "Password123!"
+- tapOn:
+    id: "sign-in"
+- assertVisible: ".*#2 .*12.*"
+- extendedWaitUntil:
+    visible: ".*#1 .*11.*"
+    timeout: 120000
