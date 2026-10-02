@@ -228,24 +228,78 @@
     "unread_label_other": "Inbox, {{count}} unread notifications"
   },
   "notif": {
-    "offer_received": { "title": "Shift offered: {{queue}}", "body": "{{range}}. Accept by {{time}}." },
-    "offer_expiring": { "title": "Your offer is about to expire", "body": "{{queue}}: {{range}}. Respond before {{time}}." },
-    "offer_expired": { "title": "Offer expired", "body": "The {{queue}} shift ({{range}}) went to the next person. You kept your place." },
-    "offer_revoked": { "title": "Offer withdrawn", "body": "The {{queue}} shift ({{range}}) is no longer available to you." },
-    "shift_assigned": { "title": "Shift confirmed", "body": "You're working {{range}} ({{queue}})." },
-    "shift_cancelled": { "title": "Shift cancelled", "body": "{{queue}}: {{range}} was cancelled. You're back at your original place in the queue." },
-    "shift_updated": { "title": "Shift details updated", "body": "{{queue}}: {{range}}." },
-    "eligible_to_rejoin": { "title": "Your shift is done. Rejoin the queue?", "body": "Tap to rejoin {{queue}}. You'll join at the end." },
-    "auto_rejoined": { "title": "Back in the queue", "body": "You rejoined {{queue}} automatically (#{{position}})." },
-    "moved_top3": { "title": "You're #{{position}} in {{queue}}", "body": "You're in the top 3. The next shift may be yours." },
-    "auto_paused": { "title": "You were paused", "body": "Several offers in {{queue}} expired without an answer. You kept your place; resume when you're available." },
-    "removed_from_queue": { "title": "Removed from {{queue}}", "body": "Reason: {{reason}}" },
-    "pool_added": { "title": "New queue available", "body": "You can now join {{queue}}." },
-    "pool_removed": { "title": "Queue access removed", "body": "You're no longer eligible for {{queue}}." },
-    "rejoin_allowed": { "title": "You can rejoin", "body": "An admin allowed you to rejoin {{queue}}." },
-    "no_show_recorded": { "title": "No-show recorded", "body": "{{queue}}: {{range}}." },
-    "shift_unfilled": { "title": "Shift unfilled", "body": "Nobody in {{queue}} accepted {{range}}." },
-    "withdrawal": { "title": "A shift was given back", "body": "{{queue}}: {{range}} is being re-offered." }
+    "offer_received": {
+      "title": "Shift offered: {{queue}}",
+      "body": "{{range}}. Accept by {{time}}."
+    },
+    "offer_expiring": {
+      "title": "Your offer is about to expire",
+      "body": "{{queue}}: {{range}}. Respond before {{time}}."
+    },
+    "offer_expired": {
+      "title": "Offer expired",
+      "body": "The {{queue}} shift ({{range}}) went to the next person. You kept your place."
+    },
+    "offer_revoked": {
+      "title": "Offer withdrawn",
+      "body": "The {{queue}} shift ({{range}}) is no longer available to you."
+    },
+    "shift_assigned": {
+      "title": "Shift confirmed",
+      "body": "You're working {{range}} ({{queue}})."
+    },
+    "shift_cancelled": {
+      "title": "Shift cancelled",
+      "body": "{{queue}}: {{range}} was cancelled. You're back at your original place in the queue."
+    },
+    "shift_updated": {
+      "title": "Shift details updated",
+      "body": "{{queue}}: {{range}}."
+    },
+    "eligible_to_rejoin": {
+      "title": "Your shift is done. Rejoin the queue?",
+      "body": "Tap to rejoin {{queue}}. You'll join at the end."
+    },
+    "auto_rejoined": {
+      "title": "Back in the queue",
+      "body": "You rejoined {{queue}} automatically (#{{position}})."
+    },
+    "moved_top3": {
+      "title": "You're #{{position}} in {{queue}}",
+      "body": "You're in the top 3. The next shift may be yours."
+    },
+    "auto_paused": {
+      "title": "You were paused",
+      "body": "Several offers in {{queue}} expired without an answer. You kept your place; resume when you're available."
+    },
+    "removed_from_queue": {
+      "title": "Removed from {{queue}}",
+      "body": "Reason: {{reason}}"
+    },
+    "pool_added": {
+      "title": "New queue available",
+      "body": "You can now join {{queue}}."
+    },
+    "pool_removed": {
+      "title": "Queue access removed",
+      "body": "You're no longer eligible for {{queue}}."
+    },
+    "rejoin_allowed": {
+      "title": "You can rejoin",
+      "body": "An admin allowed you to rejoin {{queue}}."
+    },
+    "no_show_recorded": {
+      "title": "No-show recorded",
+      "body": "{{queue}}: {{range}}."
+    },
+    "shift_unfilled": {
+      "title": "Shift unfilled",
+      "body": "Nobody in {{queue}} accepted {{range}}."
+    },
+    "withdrawal": {
+      "title": "A shift was given back",
+      "body": "{{queue}}: {{range}} is being re-offered."
+    }
   },
   "settings": {
     "title": "Settings",
@@ -287,13 +341,34 @@
   "privacy": {
     "title": "Privacy notice",
     "intro": "FairShift is built to collect as little personal data as possible (GDPR / LGPD).",
-    "who": { "title": "Who is responsible", "body": "Your hospital (the organization that invited you) decides how FairShift is used and is the data controller. FairShift processes data on its behalf." },
-    "what": { "title": "What we collect", "body": "Your name, e-mail address, preferred language, the queues you are in and when you joined them, the offers you received and how you answered, your shifts, notification settings and device push tokens. We don't collect location, contacts or health data." },
-    "why": { "title": "Why", "body": "Only to run fair, first-come-first-served queues for extra shifts, to notify you of offers, and to keep an audit log so every decision can be checked." },
-    "visibility": { "title": "Who can see it", "body": "Schedulers (admins) of your organization see names and positions. Other staff see only their own position and the queue size, unless your organization chooses to show names. Organizations can never see each other's data." },
-    "retention": { "title": "How long we keep it", "body": "While your account exists. The audit log is append-only and is kept to prove fairness; if you delete your account your entries in it become anonymous." },
-    "rights": { "title": "Your rights", "body": "You can download a copy of your data and delete your account from Settings at any time. For corrections or other requests, contact your organization's scheduler." },
-    "contact": { "title": "Contact", "body": "Questions about how your hospital uses FairShift should go to your hospital's data protection officer." }
+    "who": {
+      "title": "Who is responsible",
+      "body": "Your hospital (the organization that invited you) decides how FairShift is used and is the data controller. FairShift processes data on its behalf."
+    },
+    "what": {
+      "title": "What we collect",
+      "body": "Your name, e-mail address, preferred language, the queues you are in and when you joined them, the offers you received and how you answered, your shifts, notification settings and device push tokens. We don't collect location, contacts or health data."
+    },
+    "why": {
+      "title": "Why",
+      "body": "Only to run fair, first-come-first-served queues for extra shifts, to notify you of offers, and to keep an audit log so every decision can be checked."
+    },
+    "visibility": {
+      "title": "Who can see it",
+      "body": "Schedulers (admins) of your organization see names and positions. Other staff see only their own position and the queue size, unless your organization chooses to show names. Organizations can never see each other's data."
+    },
+    "retention": {
+      "title": "How long we keep it",
+      "body": "While your account exists. The audit log is append-only and is kept to prove fairness; if you delete your account your entries in it become anonymous."
+    },
+    "rights": {
+      "title": "Your rights",
+      "body": "You can download a copy of your data and delete your account from Settings at any time. For corrections or other requests, contact your organization's scheduler."
+    },
+    "contact": {
+      "title": "Contact",
+      "body": "Questions about how your hospital uses FairShift should go to your hospital's data protection officer."
+    }
   },
   "policy": {
     "title": "Queue rules",
@@ -557,7 +632,9 @@
     "assignment.withdrawn": "Shift given back",
     "rejoin.approved": "Rejoin allowed",
     "account.deleted": "Account deleted",
-    "audit.exported": "Audit log exported"
+    "audit.exported": "Audit log exported",
+    "entry.auto_rejoin_set": "Auto-rejoin setting changed",
+    "shift.reopened": "Unfilled shift reopened"
   },
   "errors": {
     "generic": "Something went wrong. Please try again.",
@@ -570,8 +647,13 @@
       "weak_password": "Choose a longer password (at least 8 characters).",
       "invalid_code": "That code is invalid or has expired."
     },
-    "account": { "sole_owner": "You're the only owner of an organization with members. Make someone else owner first.", "delete_failed": "We couldn't finish deleting your account. Please try again." },
-    "assignment": { "not_found": "You don't hold this shift." },
+    "account": {
+      "sole_owner": "You're the only owner of an organization with members. Make someone else owner first.",
+      "delete_failed": "We couldn't finish deleting your account. Please try again."
+    },
+    "assignment": {
+      "not_found": "You don't hold this shift."
+    },
     "invite": {
       "email_mismatch": "This invitation was sent to a different e-mail address. Sign in with that address.",
       "expired": "This invitation has expired. Ask your scheduler for a new one.",
@@ -596,8 +678,13 @@
       "not_open": "This offer has already been answered.",
       "overlaps_assignment": "This shift overlaps another shift you already have."
     },
-    "org": { "invalid_name": "Enter a name.", "invalid_timezone": "Unknown timezone. Use a name like America/Sao_Paulo." },
-    "push": { "invalid_token": "Couldn't register this device for notifications." },
+    "org": {
+      "invalid_name": "Enter a name.",
+      "invalid_timezone": "Unknown timezone. Use a name like America/Sao_Paulo."
+    },
+    "push": {
+      "invalid_token": "Couldn't register this device for notifications."
+    },
     "queue": {
       "already_joined": "You're already in this queue.",
       "archived": "This queue is archived.",
@@ -615,7 +702,9 @@
       "not_joined": "You're not in this queue.",
       "pausing_disabled": "Pausing is turned off for this queue."
     },
-    "removal": { "reason_required": "Please write a reason (at least 3 characters)." },
+    "removal": {
+      "reason_required": "Please write a reason (at least 3 characters)."
+    },
     "shift": {
       "already_started": "This shift has already started.",
       "correction_window_passed": "No-show corrections are only possible up to 7 days after a shift.",

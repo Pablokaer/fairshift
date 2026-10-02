@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
+import { Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useInbox } from '@/lib/api';
 import { useUserId } from '@/lib/auth';
@@ -18,10 +19,14 @@ export default function TabsLayout() {
       screenOptions={{
         tabBarActiveTintColor: c.primary,
         tabBarInactiveTintColor: c.textMuted,
-        tabBarStyle: { backgroundColor: c.surface, borderTopColor: c.border },
-        headerStyle: { backgroundColor: c.surface },
-        headerTitleStyle: { color: c.text },
-        tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
+        // Screens render their own H1, so the tab header would only repeat it.
+        headerShown: false,
+        tabBarStyle: {
+          backgroundColor: c.surface,
+          borderTopColor: c.border,
+          ...(Platform.OS === 'web' ? { height: 64, paddingBottom: 8, paddingTop: 6 } : null),
+        },
+        tabBarLabelStyle: { fontSize: 12, lineHeight: 16, fontWeight: '600' },
       }}
     >
       <Tabs.Screen

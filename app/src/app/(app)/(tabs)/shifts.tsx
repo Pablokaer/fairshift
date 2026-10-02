@@ -18,7 +18,7 @@ export default function Shifts() {
   const [error, setError] = useState<string | null>(null);
 
   return (
-    <Screen refreshControl={<RefreshControl refreshing={shifts.isRefetching} onRefresh={() => shifts.refetch()} />}>
+    <Screen edges={['top']} refreshControl={<RefreshControl refreshing={shifts.isRefetching} onRefresh={() => shifts.refetch()} />}>
       <H1>{t('shifts.title')}</H1>
       <Segmented
         label={t('shifts.title')}

@@ -278,7 +278,7 @@ begin
     select id, row_number() over (order by gen_random_uuid()) rn from window_entries
   )
   update public.queue_entries e
-  set seq = s.seq
+  set seq = s.seq, top3_notified_at = null
   from shuffled sh join seqs s on s.rn = sh.rn
   where e.id = sh.id;
   set constraints public.queue_entries_seq_key immediate;
@@ -532,8 +532,15 @@ begin
              and status in ('published', 'offered', 'assigned', 'unfilled') and ends_at > now()) then
     perform private.fail('queue.has_open_shifts');
   end if;
-  for r in select id from public.queue_entries where queue_id = p_queue and closed_at is null loop
+  -- Shifts that already ended but were not auto-completed yet are completed first.
+  for r in select id from public.shifts where queue_id = p_queue and status = 'assigned' and ends_at <= now() loop
+    perform private.complete_shift_locked(r.id);
+  end loop;
+  for r in select id, user_id, seq from public.queue_entries where queue_id = p_queue and closed_at is null loop
+    perform private.resolve_open_offer(p_queue, r.user_id, 'revoked', 'queue_archived');
     perform private.close_entry(r.id, 'queue_archived');
+    perform private.audit(v.org_id, 'entry.removed', p_queue => p_queue, p_subject => r.user_id,
+      p_reason => 'queue_archived', p_payload => jsonb_build_object('entry_id', r.id, 'seq', r.seq));
   end loop;
   update public.shifts set status = 'cancelled' where queue_id = p_queue and status = 'draft';
   update public.queues set archived_at = now() where id = p_queue;
@@ -556,6 +563,7 @@ begin
   select * into v from public.queues where id = p_queue;
   if v.id is null then perform private.fail('queue.not_found'); end if;
   perform private.assert_admin(v.org_id);
+  v := private.lock_queue(p_queue);
   if v.archived_at is not null then perform private.fail('queue.archived'); end if;
   foreach v_uid in array coalesce(p_user_ids, '{}') loop
     if not exists (select 1 from public.memberships where org_id = v.org_id and user_id = v_uid and status = 'active') then
@@ -753,11 +761,15 @@ set search_path = ''
 as $$
 declare
   v_uid uuid := private.require_uid();
+  v public.queues;
 begin
   if not private.is_queue_member(p_queue) then perform private.fail('queue.not_eligible'); end if;
+  v := private.lock_queue(p_queue);
   insert into public.member_queue_prefs (queue_id, user_id, auto_rejoin)
   values (p_queue, v_uid, p_enabled)
   on conflict (queue_id, user_id) do update set auto_rejoin = excluded.auto_rejoin;
+  perform private.audit(v.org_id, 'entry.auto_rejoin_set', p_queue => p_queue, p_subject => v_uid,
+    p_payload => jsonb_build_object('enabled', p_enabled));
 end;
 $$;
 
@@ -778,6 +790,7 @@ as $$
 declare
   v public.queues;
   v_entry public.queue_entries;
+  v_position int;
 begin
   select * into v from public.queues where id = p_queue;
   if v.id is null then perform private.fail('queue.not_found'); end if;
@@ -790,12 +803,13 @@ begin
   if v_entry.id is null then perform private.fail('queue.not_joined'); end if;
   if v_entry.status = 'held' then perform private.fail('queue.entry_held'); end if;
 
+  v_position := private.entry_position(v_entry);
   perform private.resolve_open_offer(p_queue, p_user, 'revoked', 'removed_by_admin');
   perform private.close_entry(v_entry.id, 'removed');
   perform private.audit(v.org_id, 'entry.removed', p_queue => p_queue, p_subject => p_user,
     p_reason => p_reason,
     p_payload => jsonb_build_object('entry_id', v_entry.id, 'seq', v_entry.seq,
-      'position', private.entry_position(v_entry), 'revoke_eligibility', p_revoke_eligibility));
+      'position', v_position, 'revoke_eligibility', p_revoke_eligibility));
   perform private.notify(p_user, v.org_id, 'removed_from_queue',
     jsonb_build_object('queue_id', p_queue, 'queue_name', v.name, 'reason', btrim(p_reason)));
 
@@ -822,6 +836,7 @@ begin
   select * into v from public.queues where id = p_queue;
   if v.id is null then perform private.fail('queue.not_found'); end if;
   perform private.assert_admin(v.org_id);
+  v := private.lock_queue(p_queue);
   update public.member_queue_prefs
   set rejoin_requires_approval = false, cooldown_until = null
   where queue_id = p_queue and user_id = p_user;
@@ -930,22 +945,29 @@ begin
   ) then
     perform private.fail('auth.forbidden');
   end if;
+  -- Staff (when names are enabled) see only names and positions of colleagues:
+  -- no offer, pause or assignment details except for their own row.
   return query
   select
     case when e.status = 'held' then null
       else (row_number() over (partition by (e.status = 'held') order by e.seq))::int end,
     case when v_admin then e.user_id end,
     case when pr.deleted_at is not null then '' else pr.display_name end,
-    case when e.status = 'held' then 'assigned'
+    case when not v_admin and e.user_id <> auth.uid() then 'waiting'
+         when e.status = 'held' then 'assigned'
          when o.id is not null then 'offered'
          else e.status::text end,
-    e.joined_at, e.paused_at, o.expires_at,
-    (select a.shift_id from public.assignments a where a.id = e.held_assignment_id),
+    e.joined_at,
+    case when v_admin or e.user_id = auth.uid() then e.paused_at end,
+    case when v_admin or e.user_id = auth.uid() then o.expires_at end,
+    case when v_admin or e.user_id = auth.uid() then
+      (select a.shift_id from public.assignments a where a.id = e.held_assignment_id) end,
     e.user_id = auth.uid()
   from public.queue_entries e
   join public.profiles pr on pr.id = e.user_id
   left join public.offers o on o.queue_id = e.queue_id and o.user_id = e.user_id and o.outcome is null
   where e.queue_id = p_queue and e.closed_at is null
+    and (v_admin or e.status <> 'held' or e.user_id = auth.uid())
   order by (e.status = 'held'), e.seq;
 end;
 $$;
@@ -969,11 +991,15 @@ declare
   v_qid uuid;
   v_entry public.queue_entries;
 begin
+  -- Lock every queue the user could act in (pool membership included), so a
+  -- concurrent join_queue waits and then sees the changed membership.
   select coalesce(array_agg(distinct queue_id order by queue_id), '{}') into v_queues
   from (
     select queue_id from public.queue_entries where org_id = p_org and user_id = p_user and closed_at is null
     union
     select queue_id from public.offers where org_id = p_org and user_id = p_user and outcome is null
+    union
+    select queue_id from public.queue_members where org_id = p_org and user_id = p_user
   ) x;
   foreach v_qid in array v_queues loop
     perform private.lock_queue(v_qid);

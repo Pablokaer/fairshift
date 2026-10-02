@@ -1,0 +1,16 @@
+<!doctype html>
+<html>
+  <body style="font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color: #10213a; background: #f5f7fa; padding: 24px">
+    <div style="max-width: 520px; margin: 0 auto; background: #fff; border-radius: 12px; padding: 24px">
+      <h1 style="font-size: 20px; margin: 0 0 12px">Sign in to FairShift / Entrar no FairShift</h1>
+      <p style="font-size: 16px; line-height: 1.5">
+        <a href="{{ .ConfirmationURL }}" style="display: inline-block; background: #0b5c73; color: #fff; text-decoration: none; padding: 12px 20px; border-radius: 8px; font-weight: 600">Sign in / Entrar</a>
+      </p>
+      <p style="font-size: 16px; line-height: 1.5">
+        Or enter this code in the app / Ou digite este código no app:
+        <strong style="font-size: 22px; letter-spacing: 3px">{{ .Token }}</strong>
+      </p>
+      <p style="font-size: 13px; color: #4a5a6a">If you didn't ask for this, you can ignore this e-mail. / Se você não pediu, ignore este e-mail.</p>
+    </div>
+  </body>
+</html>

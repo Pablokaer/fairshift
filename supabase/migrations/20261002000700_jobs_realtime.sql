@@ -55,15 +55,21 @@ begin
     where queue_id = p_queue and starts_at <= clock_timestamp()
       and (status in ('published', 'offered') or (status = 'unfilled' and unfilled_notified_at is null))
   loop
-    update public.offers set outcome = 'expired', outcome_reason = 'shift_started', responded_at = clock_timestamp()
-    where shift_id = s.id and outcome is null;
+    for r in
+      update public.offers set outcome = 'expired', outcome_reason = 'shift_started', responded_at = clock_timestamp()
+      where shift_id = s.id and outcome is null
+      returning id, user_id
+    loop
+      perform private.audit(s.org_id, 'offer.expired', p_queue => p_queue, p_shift => s.id, p_subject => r.user_id,
+        p_reason => 'shift_started', p_payload => jsonb_build_object('offer_id', r.id));
+    end loop;
     update public.shifts set status = 'unfilled', unfilled_notified_at = coalesce(unfilled_notified_at, now())
     where id = s.id;
     if s.unfilled_notified_at is null then
       perform private.audit(s.org_id, 'shift.unfilled', p_queue => p_queue, p_shift => s.id,
         p_payload => jsonb_build_object('round', s.offer_round, 'reason', 'shift_started'));
       perform private.notify_admins(s.org_id, 'shift_unfilled', private.shift_payload(s),
-        'unfilled:' || s.id::text || ':' || s.offer_round::text);
+        'unfilled:' || s.id::text || ':' || (extract(epoch from clock_timestamp()) * 1000)::bigint::text);
     end if;
     v_changes := v_changes + 1;
   end loop;
@@ -89,10 +95,10 @@ end;
 $$;
 
 -- Sweeps all queues that may need work, committing after each queue.
+-- NOTE: no SECURITY DEFINER / SET clause here: Postgres forbids COMMIT inside
+-- such procedures. It runs as the pg_cron job owner and is fully schema-qualified.
 create or replace procedure private.process_due()
 language plpgsql
-security definer
-set search_path = ''
 as $$
 declare
   r record;
@@ -110,7 +116,12 @@ begin
     )
     order by q.id
   loop
-    perform private.process_queue(r.id);
+    begin
+      perform private.process_queue(r.id);
+    exception when others then
+      -- One broken queue must never stop timeouts in the others.
+      raise warning 'process_queue(%) failed: %', r.id, sqlerrm;
+    end;
     commit;
   end loop;
 end;

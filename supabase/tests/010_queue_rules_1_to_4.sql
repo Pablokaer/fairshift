@@ -76,7 +76,7 @@ select throws_ok(
 update public.organizations set staff_can_see_names = true where id = tests.id('org');
 select is(
   tests.val('s1', 'select count(*)::text from public.queue_roster($1) where user_id is null', tests.id('q'))::int,
-  3, 'with names enabled, staff see the roster but never user ids');
+  2, 'with names enabled, staff see waiting colleagues by name, never user ids (others'' assigned rows hidden)');
 
 -- There is no reorder RPC at all (rule 13).
 select is(

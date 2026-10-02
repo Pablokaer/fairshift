@@ -632,7 +632,9 @@
     "assignment.withdrawn": "Plantão devolvido",
     "rejoin.approved": "Volta permitida",
     "account.deleted": "Conta excluída",
-    "audit.exported": "Log de auditoria exportado"
+    "audit.exported": "Log de auditoria exportado",
+    "entry.auto_rejoin_set": "Ajuste de volta automática alterado",
+    "shift.reopened": "Plantão não preenchido reaberto"
   },
   "errors": {
     "generic": "Algo deu errado. Tente novamente.",

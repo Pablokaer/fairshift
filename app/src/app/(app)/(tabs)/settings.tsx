@@ -79,7 +79,7 @@ export default function Settings() {
   };
 
   return (
-    <Screen>
+    <Screen edges={['top']}>
       <H1>{t('settings.title')}</H1>
       {msg ? <Banner kind={msg.kind}>{msg.text}</Banner> : null}
 

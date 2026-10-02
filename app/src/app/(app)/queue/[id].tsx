@@ -45,7 +45,7 @@ export default function QueueDetail() {
             <Body
               accessibilityRole="header"
               testID="queue-position"
-              style={{ fontSize: 32, fontWeight: '800', color: c.primary }}
+              style={{ fontSize: 32, lineHeight: 40, fontWeight: '800', color: c.primary }}
             >
               {t('home.position', { position: item.queue_position, total: item.queue_total })}
             </Body>

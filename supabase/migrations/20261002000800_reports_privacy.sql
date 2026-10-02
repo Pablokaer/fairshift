@@ -250,6 +250,7 @@ begin
     select queue_id from public.queue_entries where user_id = v_uid and closed_at is null
     union select queue_id from public.offers where user_id = v_uid and outcome is null
     union select queue_id from public.assignments where user_id = v_uid and status = 'active'
+    union select queue_id from public.queue_members where user_id = v_uid
   ) x;
   foreach v_qid in array v_queues loop
     perform private.lock_queue(v_qid);
@@ -279,6 +280,8 @@ begin
     v_entry := private.open_entry(v_qid, v_uid);
     if v_entry.id is not null then
       perform private.close_entry(v_entry.id, 'account_deleted');
+      perform private.audit(v_entry.org_id, 'entry.removed', p_queue => v_qid, p_subject => v_uid,
+        p_reason => 'account_deleted', p_payload => jsonb_build_object('entry_id', v_entry.id, 'seq', v_entry.seq));
     end if;
   end loop;
 

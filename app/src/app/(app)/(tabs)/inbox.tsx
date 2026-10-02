@@ -32,7 +32,7 @@ export default function Inbox() {
   const items = inbox.data ?? [];
   const tz = current?.org.timezone ?? 'UTC';
   return (
-    <Screen refreshControl={<RefreshControl refreshing={inbox.isRefetching} onRefresh={() => inbox.refetch()} />}>
+    <Screen edges={['top']} refreshControl={<RefreshControl refreshing={inbox.isRefetching} onRefresh={() => inbox.refetch()} />}>
       <H1>{t('inbox.title')}</H1>
       {items.length === 0 ? <Empty title={t('inbox.empty')} icon="notifications-off-outline" /> : null}
       {items.length > 0 ? (

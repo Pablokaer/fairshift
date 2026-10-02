@@ -190,6 +190,7 @@ export default function AdminQueue() {
                     />
                   ) : (
                     <Button
+                      testID={`pool-add-${m.display_name}`}
                       title={t('admin.add_to_pool')}
                       onPress={() => run('pool', () => rpc('add_queue_members', { p_queue: q.id, p_user_ids: [m.user_id] }))}
                     />

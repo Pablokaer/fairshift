@@ -306,6 +306,9 @@ begin
               v_now, least(v_now + v_queue.acceptance_window, s.starts_at))
       returning * into v_offer;
       update public.shifts set status = 'offered' where id = s.id;
+      if s.status = 'unfilled' then
+        perform private.audit(s.org_id, 'shift.reopened', p_queue => p_queue, p_shift => s.id);
+      end if;
       perform private.audit(s.org_id, 'offer.created', p_queue => p_queue, p_shift => s.id, p_subject => c.user_id,
         p_payload => jsonb_build_object('offer_id', v_offer.id, 'entry_id', c.entry_id, 'seq', c.seq,
           'position', v_offer.queue_position, 'round', s.offer_round, 'expires_at', v_offer.expires_at));
@@ -332,6 +335,9 @@ begin
     ) then
       if s.status <> 'published' then
         update public.shifts set status = 'published' where id = s.id;
+        if s.status = 'unfilled' then
+          perform private.audit(s.org_id, 'shift.reopened', p_queue => p_queue, p_shift => s.id);
+        end if;
         v_changes := v_changes + 1;
       end if;
     else
@@ -344,7 +350,7 @@ begin
         perform private.audit(s.org_id, 'shift.unfilled', p_queue => p_queue, p_shift => s.id,
           p_payload => jsonb_build_object('round', s.offer_round));
         perform private.notify_admins(s.org_id, 'shift_unfilled', private.shift_payload(s),
-          'unfilled:' || s.id::text || ':' || s.offer_round::text);
+          'unfilled:' || s.id::text || ':' || (extract(epoch from clock_timestamp()) * 1000)::bigint::text);
       end if;
     end if;
   end loop;
@@ -384,6 +390,11 @@ begin
   if v_entry.id is null or v_entry.status <> 'waiting' then
     return;
   end if;
+  -- The window was cut short because the shift starts soon: not a fair chance
+  -- to respond, so no timeout consequences (they keep their place).
+  if o.expires_at - o.offered_at < v_queue.acceptance_window - interval '1 second' then
+    return;
+  end if;
   update public.queue_entries set consecutive_timeouts = consecutive_timeouts + 1
   where id = v_entry.id returning * into v_entry;
 
@@ -391,7 +402,7 @@ begin
     v_entry := private.move_to_end(v_entry, 'timeout');
   end if;
 
-  if v_queue.auto_pause_after_timeouts is not null
+  if v_queue.auto_pause_after_timeouts is not null and v_queue.pausing_allowed
      and v_entry.consecutive_timeouts >= v_queue.auto_pause_after_timeouts then
     update public.queue_entries set status = 'paused', paused_at = clock_timestamp()
     where id = v_entry.id;
@@ -678,6 +689,9 @@ begin
   select * into s from public.shifts where id = p_shift;
   if s.status = 'draft' then perform private.fail('shift.is_draft'); end if;
   if s.status in ('completed', 'no_show', 'cancelled') then perform private.fail('shift.final'); end if;
+  -- A shift that has started was (being) worked: mark it completed or no-show
+  -- instead. Restoring the original position here would let admins reorder.
+  if s.status = 'assigned' and s.starts_at <= now() then perform private.fail('shift.already_started'); end if;
 
   select * into o from public.offers where shift_id = p_shift and outcome is null;
   if o.id is not null then
@@ -912,6 +926,8 @@ begin
   v_queue := private.lock_queue(o.queue_id);
   select * into o from public.offers where id = p_offer for update;
   if o.outcome is not null then perform private.fail('offer.not_open', o.outcome::text); end if;
+  -- Too late: it is a timeout (the scheduler records it), not a decline.
+  if clock_timestamp() >= o.expires_at then perform private.fail('offer.expired'); end if;
 
   perform private.resolve_open_offer(o.queue_id, v_uid, 'declined', 'declined');
   v_entry := private.open_entry(o.queue_id, v_uid);

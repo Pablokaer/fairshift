@@ -22,7 +22,7 @@ export default function Home() {
   const offers = queues.filter((x) => x.state === 'offered');
 
   return (
-    <Screen refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={() => q.refetch()} />}>
+    <Screen edges={['top']} refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={() => q.refetch()} />}>
       <OrgSwitcher />
       <H1>{t('home.title')}</H1>
       {actions.error ? <Banner kind="error">{actions.error}</Banner> : null}
@@ -120,5 +120,5 @@ function QueueCard({
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.sm, flexWrap: 'wrap' },
   name: { fontSize: 18, fontWeight: '700', flexShrink: 1 },
-  position: { fontSize: 22, fontWeight: '800', marginVertical: space.sm },
+  position: { fontSize: 22, lineHeight: 30, fontWeight: '800', marginVertical: space.sm },
 });

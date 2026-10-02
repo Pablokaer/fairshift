@@ -17,7 +17,7 @@ export default function AdminHome() {
   const byQueue = new Map((stats.data?.queues ?? []).map((s) => [s.queue_id, s]));
 
   return (
-    <Screen
+    <Screen edges={['top']}
       refreshControl={
         <RefreshControl refreshing={queues.isRefetching} onRefresh={() => Promise.all([queues.refetch(), stats.refetch()])} />
       }
