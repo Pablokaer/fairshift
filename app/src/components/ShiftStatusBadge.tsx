@@ -1,18 +1,28 @@
 import { useTranslation } from 'react-i18next';
-import { Badge } from './ui';
+import { Badge, type BadgeTone } from './ui';
 
-const TONES: Record<string, 'waiting' | 'paused' | 'offered' | 'assigned' | 'neutral'> = {
+const SHIFT_TONES: Record<string, BadgeTone> = {
   draft: 'neutral',
-  published: 'waiting',
-  offered: 'offered',
-  assigned: 'assigned',
-  completed: 'assigned',
-  no_show: 'paused',
+  open: 'paused',
+  filled: 'assigned',
+  completed: 'waiting',
   cancelled: 'neutral',
-  unfilled: 'paused',
+};
+
+const ASSIGNMENT_TONES: Record<string, BadgeTone> = {
+  active: 'assigned',
+  completed: 'waiting',
+  no_show: 'danger',
+  cancelled: 'neutral',
+  withdrawn: 'neutral',
 };
 
 export function ShiftStatusBadge({ status }: { status: string }) {
   const { t } = useTranslation();
-  return <Badge label={t(`shift_status.${status}`)} tone={TONES[status] ?? 'neutral'} />;
+  return <Badge label={t(`shift_status.${status}`)} tone={SHIFT_TONES[status] ?? 'neutral'} />;
+}
+
+export function AssignmentBadge({ status }: { status: string }) {
+  const { t } = useTranslation();
+  return <Badge label={t(`assignment.${status}`)} tone={ASSIGNMENT_TONES[status] ?? 'neutral'} />;
 }

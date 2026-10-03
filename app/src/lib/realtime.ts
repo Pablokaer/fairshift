@@ -5,9 +5,9 @@ import { supabase } from './supabase';
 /**
  * Subscribes to FairShift's private broadcast topics. Messages carry no data
  * (privacy): any message simply means "something changed, refetch".
- *   queue:<id>       a queue I'm eligible for
- *   org:<id>:admin   admin dashboards
- *   user:<id>        my inbox / offers
+ *   queue:<id>       my profession's queue
+ *   org:<id>:admin   manager dashboards
+ *   user:<id>        my inbox / shift assignments
  */
 export function useRealtimeTopics(topics: string[]) {
   const qc = useQueryClient();

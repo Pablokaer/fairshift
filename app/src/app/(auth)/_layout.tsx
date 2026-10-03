@@ -1,6 +1,6 @@
 import { Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { useTheme } from '@/lib/theme';
+import { font, useTheme } from '@/lib/theme';
 
 export default function AuthLayout() {
   const { t } = useTranslation();
@@ -9,8 +9,9 @@ export default function AuthLayout() {
     <Stack
       screenOptions={{
         headerStyle: { backgroundColor: c.surface },
-        headerTintColor: c.primary,
-        headerTitleStyle: { color: c.text },
+        headerTintColor: c.primaryStrong,
+        headerTitleStyle: { color: c.text, fontFamily: font.semibold },
+        headerShadowVisible: false,
         contentStyle: { backgroundColor: c.bg },
       }}
     >

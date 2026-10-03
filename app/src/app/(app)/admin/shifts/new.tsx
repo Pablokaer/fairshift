@@ -1,56 +1,55 @@
+import { Ionicons } from '@expo/vector-icons';
+import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View } from 'react-native';
-import { Banner, Body, Button, Card, Chip, Field, Gap, H2, Row, Screen, Segmented, Small, Toggle } from '@/components/ui';
-import { rpc, useQueues } from '@/lib/api';
+import { Pressable, Text, View } from 'react-native';
+import { Banner, Body, Button, Card, Field, Gap, Screen, Segmented, Small, Toggle } from '@/components/ui';
+import { rpc, useQueueOverview, type Profession } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { useOrg } from '@/lib/org';
-import { space } from '@/lib/theme';
-import { expandShifts, type Draft } from '@/lib/shifts';
+import { font, radius, space, useTheme } from '@/lib/theme';
 import { addDays, isHm, isYmd, todayIn } from '@/lib/time';
 
-export default function NewShifts() {
+export default function NewShift() {
   const { t } = useTranslation();
+  const c = useTheme();
   const { current } = useOrg();
-  const queues = useQueues(current?.org_id);
+  const qc = useQueryClient();
+  const overview = useQueueOverview(current?.org_id);
   const tz = current?.org.timezone ?? 'UTC';
-  const [queueId, setQueueId] = useState<string | null>(null);
-  const [mode, setMode] = useState<'single' | 'bulk'>('single');
-  const [draft, setDraft] = useState<Draft>({ date: addDays(todayIn(tz), 1), start: '07:00', end: '19:00', unit: '', notes: '' });
-  const [repeat, setRepeat] = useState('5');
-  const [every, setEvery] = useState('1');
-  const [weekdaysOnly, setWeekdaysOnly] = useState(false);
-  const [publish, setPublish] = useState(true);
+  const [profession, setProfession] = useState<Profession>('doctor');
+  const [date, setDate] = useState(addDays(todayIn(tz), 1));
+  const [start, setStart] = useState('07:00');
+  const [end, setEnd] = useState('19:00');
+  const [unit, setUnit] = useState('');
+  const [notes, setNotes] = useState('');
+  const [slots, setSlots] = useState(1);
+  const [publishNow, setPublishNow] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!queueId && queues.data?.length) setQueueId(queues.data[0].id);
-  }, [queues.data, queueId]);
-
-  const items = useMemo(
-    () => expandShifts(draft, mode, Math.min(60, Number(repeat) || 0), Math.max(1, Number(every) || 1), weekdaysOnly),
-    [draft, mode, repeat, every, weekdaysOnly],
-  );
-  const valid = !!queueId && isYmd(draft.date) && isHm(draft.start) && isHm(draft.end) && items.length > 0;
-  const overnight = isHm(draft.start) && isHm(draft.end) && draft.end <= draft.start;
+  const waiting = overview.data?.find((q) => q.profession === profession)?.waiting ?? 0;
+  const dateOk = isYmd(date);
+  const startOk = isHm(start);
+  const endOk = isHm(end);
+  const overnight = startOk && endOk && end <= start;
 
   const submit = async () => {
+    if (!current) return;
     setBusy(true);
     setError(null);
     try {
-      await rpc('create_shifts', {
-        p_queue: queueId!,
-        p_publish: publish,
-        p_shifts: items.map((i) => ({
-          start_local: `${i.date}T${i.start}`,
-          end_local: `${i.date}T${i.end}`,
-          unit: i.unit.trim(),
-          notes: i.notes.trim(),
-        })) as never,
+      const endDate = overnight ? addDays(date, 1) : date;
+      const ids = await rpc('create_shifts', {
+        p_org: current.org_id,
+        p_profession: profession,
+        p_publish: publishNow,
+        p_shifts: [{ start_local: `${date}T${start}`, end_local: `${endDate}T${end}`, unit: unit.trim(), notes: notes.trim(), slots }],
       });
-      router.replace('/admin/shifts');
+      qc.invalidateQueries();
+      const id = (ids as unknown as string[])[0];
+      router.replace(`/admin/shifts/${id}`);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -58,61 +57,105 @@ export default function NewShifts() {
     }
   };
 
-  const set = (k: keyof Draft) => (v: string) => setDraft({ ...draft, [k]: v });
-
   return (
     <Screen>
+      <Small style={{ marginBottom: space.md }}>{t('admin.new_shift_help', { tz })}</Small>
       {error ? <Banner kind="error">{error}</Banner> : null}
-      <Body style={{ fontWeight: '600', marginBottom: space.xs }}>{t('admin.queue')}</Body>
-      <Row>
-        {queues.data?.map((q) => (
-          <Chip key={q.id} label={q.name} selected={queueId === q.id} onPress={() => setQueueId(q.id)} />
-        ))}
-      </Row>
-      <Gap />
+
+      <Body style={{ fontFamily: font.semibold, marginBottom: space.xs }}>{t('admin.profession')}</Body>
       <Segmented
-        label={t('admin.shift_mode')}
-        value={mode}
-        onChange={setMode}
+        label={t('admin.profession')}
+        value={profession}
+        onChange={setProfession}
         options={[
-          { value: 'single', label: t('admin.single') },
-          { value: 'bulk', label: t('admin.bulk') },
+          { value: 'doctor', label: t('professions_plural.doctor'), testID: 'profession-doctor' },
+          { value: 'nurse', label: t('professions_plural.nurse'), testID: 'profession-nurse' },
         ]}
       />
-      <Small>{t('admin.times_in_tz', { tz })}</Small>
-      <Gap size={space.sm} />
-      <Field testID="shift-date" label={t('admin.date')} value={draft.date} onChangeText={set('date')} placeholder="YYYY-MM-DD" hint="YYYY-MM-DD" error={draft.date && !isYmd(draft.date) ? t('admin.invalid_date') : null} />
+
+      <Field
+        testID="shift-date"
+        label={t('admin.date')}
+        value={date}
+        onChangeText={setDate}
+        hint={t('admin.date_hint')}
+        error={dateOk ? null : t('admin.invalid_date')}
+        autoCapitalize="none"
+        inputMode="numeric"
+      />
       <View style={{ flexDirection: 'row', gap: space.md }}>
         <View style={{ flex: 1 }}>
-          <Field testID="shift-start" label={t('admin.start')} value={draft.start} onChangeText={set('start')} placeholder="07:00" hint="HH:MM" error={draft.start && !isHm(draft.start) ? t('admin.invalid_time') : null} />
+          <Field testID="shift-start" label={t('admin.start')} value={start} onChangeText={setStart} error={startOk ? null : t('admin.invalid_time')} inputMode="numeric" />
         </View>
         <View style={{ flex: 1 }}>
-          <Field testID="shift-end" label={t('admin.end')} value={draft.end} onChangeText={set('end')} placeholder="19:00" hint="HH:MM" error={draft.end && !isHm(draft.end) ? t('admin.invalid_time') : null} />
+          <Field testID="shift-end" label={t('admin.end')} value={end} onChangeText={setEnd} error={endOk ? null : t('admin.invalid_time')} inputMode="numeric" />
         </View>
       </View>
       {overnight ? <Banner kind="info">{t('admin.overnight')}</Banner> : null}
-      <Field testID="shift-unit" label={t('admin.unit')} value={draft.unit} onChangeText={set('unit')} />
-      <Field label={t('admin.notes')} value={draft.notes} onChangeText={set('notes')} multiline />
+      <Field testID="shift-unit" label={t('admin.unit')} value={unit} onChangeText={setUnit} placeholder={t('admin.unit_placeholder')} />
+      <Field testID="shift-notes" label={t('admin.notes')} value={notes} onChangeText={setNotes} multiline />
 
-      {mode === 'bulk' ? (
-        <Card>
-          <H2 style={{ marginTop: 0 }}>{t('admin.repeat')}</H2>
-          <Field label={t('admin.repeat_count')} value={repeat} onChangeText={(v) => setRepeat(v.replace(/\D/g, ''))} keyboardType="number-pad" hint={t('admin.repeat_max')} />
-          <Field label={t('admin.repeat_every')} value={every} onChangeText={(v) => setEvery(v.replace(/\D/g, ''))} keyboardType="number-pad" />
-          <Toggle label={t('admin.weekdays_only')} value={weekdaysOnly} onValueChange={setWeekdaysOnly} />
-          <Small>{t('admin.will_create', { count: items.length, first: items[0]?.date ?? '', last: items[items.length - 1]?.date ?? '' })}</Small>
-        </Card>
-      ) : null}
+      <Body style={{ fontFamily: font.semibold, marginBottom: space.xs }}>{t('admin.slots')}</Body>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, marginBottom: space.sm }}>
+        <Stepper icon="remove" label={t('admin.slots_less')} onPress={() => setSlots((s) => Math.max(1, s - 1))} disabled={slots <= 1} />
+        <Text
+          testID="shift-slots"
+          accessibilityLabel={t('admin.slots_value', { count: slots })}
+          style={{ fontFamily: font.extrabold, fontSize: 32, minWidth: 48, textAlign: 'center', color: c.text }}
+        >
+          {slots}
+        </Text>
+        <Stepper testID="slots-more" icon="add" label={t('admin.slots_more')} onPress={() => setSlots((s) => Math.min(50, s + 1))} disabled={slots >= 50} />
+      </View>
+      <Small style={{ marginBottom: space.lg }}>{t('admin.slots_help')}</Small>
 
-      <Toggle label={t('admin.publish_now')} hint={t('admin.publish_now_hint')} value={publish} onValueChange={setPublish} />
+      <Card tone="tint">
+        <Toggle testID="publish-now" label={t('admin.publish_now')} hint={t('admin.publish_now_hint')} value={publishNow} onValueChange={setPublishNow} />
+        {publishNow ? (
+          <Body style={{ marginTop: space.sm }}>
+            {waiting >= slots
+              ? t('admin.preview_assign', { count: slots, queue: t(`queue_in_sentence.${profession}`) })
+              : t('admin.preview_short', { waiting, slots, queue: t(`queue_in_sentence.${profession}`) })}
+          </Body>
+        ) : null}
+      </Card>
       <Gap />
       <Button
-        testID="create-shifts"
-        title={publish ? t('admin.create_and_publish', { count: items.length }) : t('admin.save_drafts', { count: items.length })}
+        testID="create-shift"
+        size="lg"
+        title={publishNow ? t('admin.create_publish') : t('admin.save_draft')}
+        icon={publishNow ? 'paper-plane-outline' : 'save-outline'}
         onPress={submit}
         loading={busy}
-        disabled={!valid}
+        disabled={!dateOk || !startOk || !endOk}
       />
     </Screen>
+  );
+}
+
+function Stepper({ icon, label, onPress, disabled, testID }: { icon: 'add' | 'remove'; label: string; onPress: () => void; disabled?: boolean; testID?: string }) {
+  const c = useTheme();
+  return (
+    <Pressable
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: !!disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        width: 48,
+        height: 48,
+        borderRadius: radius.md,
+        borderWidth: 1,
+        borderColor: c.border,
+        backgroundColor: c.surface,
+        alignItems: 'center',
+        justifyContent: 'center',
+        opacity: disabled ? 0.4 : pressed ? 0.7 : 1,
+      })}
+    >
+      <Ionicons name={icon} size={24} color={c.primaryStrong} />
+    </Pressable>
   );
 }

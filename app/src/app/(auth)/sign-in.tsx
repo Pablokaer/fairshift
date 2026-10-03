@@ -1,16 +1,18 @@
+import { Ionicons } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
 import { Link, router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
-import { Banner, Body, Button, Field, Gap, H1, Screen, Segmented } from '@/components/ui';
+import { Banner, Body, Button, Card, Field, Gap, H1, Screen, Segmented } from '@/components/ui';
 import { errorMessage } from '@/lib/errors';
 import { supabase } from '@/lib/supabase';
-import { space } from '@/lib/theme';
+import { radius, space, useTheme } from '@/lib/theme';
 
 export default function SignIn() {
   const { t } = useTranslation();
+  const c = useTheme();
   const { next } = useLocalSearchParams<{ next?: string }>();
   const [mode, setMode] = useState<'password' | 'magic'>('password');
   const [email, setEmail] = useState('');
@@ -37,7 +39,8 @@ export default function SignIn() {
     const redirect = Linking.createURL('/auth/callback', { queryParams: next ? { next } : undefined });
     const { error: e } = await supabase.auth.signInWithOtp({
       email: email.trim(),
-      options: { emailRedirectTo: redirect, shouldCreateUser: true },
+      // Never creates accounts: signing up needs the hospital code (sign-up screen).
+      options: { emailRedirectTo: redirect, shouldCreateUser: false },
     });
     setBusy(false);
     if (e) setError(errorMessage(e));
@@ -51,10 +54,14 @@ export default function SignIn() {
       <View style={{ alignItems: 'flex-end' }}>
         <LanguageSwitcher />
       </View>
-      <H1>{t('app.name')}</H1>
+      <View style={{ width: 64, height: 64, borderRadius: radius.lg, backgroundColor: c.primaryTint, alignItems: 'center', justifyContent: 'center', marginBottom: space.lg }}>
+        <Ionicons name="people" size={34} color={c.primaryStrong} />
+      </View>
+      <H1 style={{ marginBottom: space.sm }}>{t('app.name')}</H1>
       <Body muted style={{ marginBottom: space.xl }}>
         {t('app.tagline')}
       </Body>
+      <Card>
       <Segmented
         label={t('auth.method')}
         value={mode}
@@ -104,6 +111,7 @@ export default function SignIn() {
           <Button title={t('auth.send_link')} onPress={sendMagicLink} loading={busy} disabled={!validEmail} />
         </>
       )}
+      </Card>
       <Gap size={space.xl} />
       <Link href={{ pathname: '/sign-up', params: next ? { next } : {} }} asChild>
         <Button variant="ghost" title={t('auth.no_account')} />

@@ -1,18 +1,27 @@
-# Run on a second simulator/emulator while staff_accept_offer.yaml runs on the first:
-# nurse02's position changes from #2 to #1 without any refresh.
+# Run on a second simulator/emulator while admin_publish_shift.yaml runs on the
+# first: doctor04 goes from #3 to #1 (of 8, then of 6) without any refresh.
 appId: app.fairshift.mobile
 ---
 - launchApp:
     clearState: true
 - tapOn:
     id: "email"
-- inputText: "nurse02@demo.fairshift.app"
+- inputText: "doctor04@demo.fairshift.app"
 - tapOn:
     id: "password"
 - inputText: "Password123!"
 - tapOn:
     id: "sign-in"
-- assertVisible: ".*#2 .*12.*"
 - extendedWaitUntil:
-    visible: ".*#1 .*11.*"
+    visible:
+      id: "position-number"
+      text: "#3"
+    timeout: 20000
+- extendedWaitUntil:
+    visible:
+      id: "position-number"
+      text: "#1"
     timeout: 120000
+- assertVisible:
+    id: "position-total"
+    text: "(of|de) 6"

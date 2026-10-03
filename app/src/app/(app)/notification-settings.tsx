@@ -8,9 +8,9 @@ import { useOrg } from '@/lib/org';
 import { supabase } from '@/lib/supabase';
 import { space } from '@/lib/theme';
 
-const STAFF_TYPES = ['offer_received', 'offer_expiring', 'shift_assigned', 'shift_cancelled', 'eligible_to_rejoin', 'moved_top3'];
-const ADMIN_TYPES = ['shift_unfilled', 'withdrawal'];
-const EMAIL_TYPES = new Set(['offer_received', 'offer_expiring']);
+const STAFF_TYPES = ['shift_assigned', 'shift_cancelled', 'shift_updated', 'eligible_to_rejoin', 'moved_top3'];
+const ADMIN_TYPES = ['shift_short', 'shift_started_short', 'shift_given_back'];
+const EMAIL_TYPES = new Set(['shift_assigned']);
 
 export default function NotificationSettings() {
   const { t } = useTranslation();
@@ -36,7 +36,7 @@ export default function NotificationSettings() {
       <Body muted style={{ marginBottom: space.md }}>{t('notifications.explainer')}</Body>
       {types.map((type) => (
         <Card key={type}>
-          <H2 style={{ marginTop: 0 }}>{t(`notifications.types.${type}`)}</H2>
+          <H2 style={{ marginTop: 0, marginBottom: space.xs }}>{t(`notifications.types.${type}`)}</H2>
           <Toggle label={t('notifications.push')} value={get(type).push} onValueChange={(v) => set(type, { push: v })} />
           {EMAIL_TYPES.has(type) ? (
             <Toggle

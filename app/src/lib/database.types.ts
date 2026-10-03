@@ -25,13 +25,13 @@ export type Database = {
           Tables: {
             "assignments": {
                   Row: {
-                    "assigned_at": string,"ended_at": string | null,"ended_by": string | null,"entry_id": string,"id": string,"offer_id": string,"org_id": string,"queue_id": string,"reason": string | null,"shift_id": string,"status": Database["public"]['Enums']["assignment_status"],"user_id": string
+                    "assigned_at": string,"ended_at": string | null,"ended_by": string | null,"entry_id": string,"id": string,"org_id": string,"queue_id": string,"queue_position": number | null,"reason": string | null,"shift_id": string,"status": Database["public"]['Enums']["assignment_status"],"user_id": string
                   }
                   Insert: {
-                    "assigned_at"?: string,"ended_at"?: string | null,"ended_by"?: string | null,"entry_id": string,"id"?: string,"offer_id": string,"org_id": string,"queue_id": string,"reason"?: string | null,"shift_id": string,"status"?: Database["public"]['Enums']["assignment_status"],"user_id": string
+                    "assigned_at"?: string,"ended_at"?: string | null,"ended_by"?: string | null,"entry_id": string,"id"?: string,"org_id": string,"queue_id": string,"queue_position"?: number | null,"reason"?: string | null,"shift_id": string,"status"?: Database["public"]['Enums']["assignment_status"],"user_id": string
                   }
                   Update: {
-                    "assigned_at"?: string,"ended_at"?: string | null,"ended_by"?: string | null,"entry_id"?: string,"id"?: string,"offer_id"?: string,"org_id"?: string,"queue_id"?: string,"reason"?: string | null,"shift_id"?: string,"status"?: Database["public"]['Enums']["assignment_status"],"user_id"?: string
+                    "assigned_at"?: string,"ended_at"?: string | null,"ended_by"?: string | null,"entry_id"?: string,"id"?: string,"org_id"?: string,"queue_id"?: string,"queue_position"?: number | null,"reason"?: string | null,"shift_id"?: string,"status"?: Database["public"]['Enums']["assignment_status"],"user_id"?: string
                   }
                   Relationships: [
                     {
@@ -45,12 +45,6 @@ isOneToOne: false
       columns: ["entry_id"]
 isOneToOne: false
       referencedRelation: "queue_entries"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "assignments_offer_id_fkey"
-      columns: ["offer_id"]
-isOneToOne: false
-      referencedRelation: "offers"
       referencedColumns: ["id"]
     },{
       foreignKeyName: "assignments_org_id_fkey"
@@ -109,40 +103,15 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
-                },"invites": {
-                  Row: {
-                    "code": string | null,"created_at": string,"created_by": string | null,"email": string | null,"expires_at": string,"id": string,"kind": Database["public"]['Enums']["invite_kind"],"max_uses": number,"org_id": string,"queue_ids": (string)[],"revoked_at": string | null,"role": Database["public"]['Enums']["member_role"],"token_hash": string | null,"use_count": number
-                  }
-                  Insert: {
-                    "code"?: string | null,"created_at"?: string,"created_by"?: string | null,"email"?: string | null,"expires_at": string,"id"?: string,"kind": Database["public"]['Enums']["invite_kind"],"max_uses"?: number,"org_id": string,"queue_ids"?: (string)[],"revoked_at"?: string | null,"role"?: Database["public"]['Enums']["member_role"],"token_hash"?: string | null,"use_count"?: number
-                  }
-                  Update: {
-                    "code"?: string | null,"created_at"?: string,"created_by"?: string | null,"email"?: string | null,"expires_at"?: string,"id"?: string,"kind"?: Database["public"]['Enums']["invite_kind"],"max_uses"?: number,"org_id"?: string,"queue_ids"?: (string)[],"revoked_at"?: string | null,"role"?: Database["public"]['Enums']["member_role"],"token_hash"?: string | null,"use_count"?: number
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "invites_created_by_fkey"
-      columns: ["created_by"]
-isOneToOne: false
-      referencedRelation: "profiles"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "invites_org_id_fkey"
-      columns: ["org_id"]
-isOneToOne: false
-      referencedRelation: "organizations"
-      referencedColumns: ["id"]
-    }
-                  ]
                 },"member_queue_prefs": {
                   Row: {
-                    "auto_rejoin": boolean,"cooldown_until": string | null,"queue_id": string,"rejoin_requires_approval": boolean,"user_id": string
+                    "auto_rejoin": boolean,"queue_id": string,"user_id": string
                   }
                   Insert: {
-                    "auto_rejoin"?: boolean,"cooldown_until"?: string | null,"queue_id": string,"rejoin_requires_approval"?: boolean,"user_id": string
+                    "auto_rejoin"?: boolean,"queue_id": string,"user_id": string
                   }
                   Update: {
-                    "auto_rejoin"?: boolean,"cooldown_until"?: string | null,"queue_id"?: string,"rejoin_requires_approval"?: boolean,"user_id"?: string
+                    "auto_rejoin"?: boolean,"queue_id"?: string,"user_id"?: string
                   }
                   Relationships: [
                     {
@@ -161,13 +130,13 @@ isOneToOne: false
                   ]
                 },"memberships": {
                   Row: {
-                    "created_at": string,"deactivated_at": string | null,"org_id": string,"role": Database["public"]['Enums']["member_role"],"status": Database["public"]['Enums']["member_status"],"user_id": string
+                    "created_at": string,"deactivated_at": string | null,"org_id": string,"profession": Database["public"]['Enums']["profession"] | null,"role": Database["public"]['Enums']["member_role"],"status": Database["public"]['Enums']["member_status"],"user_id": string
                   }
                   Insert: {
-                    "created_at"?: string,"deactivated_at"?: string | null,"org_id": string,"role"?: Database["public"]['Enums']["member_role"],"status"?: Database["public"]['Enums']["member_status"],"user_id": string
+                    "created_at"?: string,"deactivated_at"?: string | null,"org_id": string,"profession"?: Database["public"]['Enums']["profession"] | null,"role"?: Database["public"]['Enums']["member_role"],"status"?: Database["public"]['Enums']["member_status"],"user_id": string
                   }
                   Update: {
-                    "created_at"?: string,"deactivated_at"?: string | null,"org_id"?: string,"role"?: Database["public"]['Enums']["member_role"],"status"?: Database["public"]['Enums']["member_status"],"user_id"?: string
+                    "created_at"?: string,"deactivated_at"?: string | null,"org_id"?: string,"profession"?: Database["public"]['Enums']["profession"] | null,"role"?: Database["public"]['Enums']["member_role"],"status"?: Database["public"]['Enums']["member_status"],"user_id"?: string
                   }
                   Relationships: [
                     {
@@ -272,58 +241,15 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
-                },"offers": {
-                  Row: {
-                    "entry_id": string,"expires_at": string,"id": string,"offered_at": string,"org_id": string,"outcome": Database["public"]['Enums']["offer_outcome"] | null,"outcome_reason": string | null,"queue_id": string,"queue_position": number | null,"reminder_sent_at": string | null,"responded_at": string | null,"round": number,"shift_id": string,"user_id": string
-                  }
-                  Insert: {
-                    "entry_id": string,"expires_at": string,"id"?: string,"offered_at"?: string,"org_id": string,"outcome"?: Database["public"]['Enums']["offer_outcome"] | null,"outcome_reason"?: string | null,"queue_id": string,"queue_position"?: number | null,"reminder_sent_at"?: string | null,"responded_at"?: string | null,"round": number,"shift_id": string,"user_id": string
-                  }
-                  Update: {
-                    "entry_id"?: string,"expires_at"?: string,"id"?: string,"offered_at"?: string,"org_id"?: string,"outcome"?: Database["public"]['Enums']["offer_outcome"] | null,"outcome_reason"?: string | null,"queue_id"?: string,"queue_position"?: number | null,"reminder_sent_at"?: string | null,"responded_at"?: string | null,"round"?: number,"shift_id"?: string,"user_id"?: string
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "offers_entry_id_fkey"
-      columns: ["entry_id"]
-isOneToOne: false
-      referencedRelation: "queue_entries"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "offers_org_id_fkey"
-      columns: ["org_id"]
-isOneToOne: false
-      referencedRelation: "organizations"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "offers_queue_id_fkey"
-      columns: ["queue_id"]
-isOneToOne: false
-      referencedRelation: "queues"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "offers_shift_id_fkey"
-      columns: ["shift_id"]
-isOneToOne: false
-      referencedRelation: "shifts"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "offers_user_id_fkey"
-      columns: ["user_id"]
-isOneToOne: false
-      referencedRelation: "profiles"
-      referencedColumns: ["id"]
-    }
-                  ]
                 },"organizations": {
                   Row: {
-                    "created_at": string,"created_by": string | null,"id": string,"name": string,"staff_can_see_names": boolean,"timezone": string
+                    "created_at": string,"created_by": string | null,"id": string,"join_code": string,"join_code_rotated_at": string | null,"name": string,"timezone": string
                   }
                   Insert: {
-                    "created_at"?: string,"created_by"?: string | null,"id"?: string,"name": string,"staff_can_see_names"?: boolean,"timezone"?: string
+                    "created_at"?: string,"created_by"?: string | null,"id"?: string,"join_code"?: string,"join_code_rotated_at"?: string | null,"name": string,"timezone"?: string
                   }
                   Update: {
-                    "created_at"?: string,"created_by"?: string | null,"id"?: string,"name"?: string,"staff_can_see_names"?: boolean,"timezone"?: string
+                    "created_at"?: string,"created_by"?: string | null,"id"?: string,"join_code"?: string,"join_code_rotated_at"?: string | null,"name"?: string,"timezone"?: string
                   }
                   Relationships: [
                     {
@@ -349,13 +275,13 @@ isOneToOne: false
                   ]
                 },"queue_entries": {
                   Row: {
-                    "close_reason": Database["public"]['Enums']["entry_close_reason"] | null,"closed_at": string | null,"closed_by": string | null,"consecutive_timeouts": number,"held_assignment_id": string | null,"id": string,"joined_at": string,"org_id": string,"paused_at": string | null,"queue_id": string,"seq": number,"status": Database["public"]['Enums']["entry_status"],"top3_notified_at": string | null,"user_id": string
+                    "close_reason": Database["public"]['Enums']["entry_close_reason"] | null,"closed_at": string | null,"closed_by": string | null,"held_assignment_id": string | null,"id": string,"joined_at": string,"org_id": string,"paused_at": string | null,"queue_id": string,"seq": number,"status": Database["public"]['Enums']["entry_status"],"top3_notified_at": string | null,"user_id": string
                   }
                   Insert: {
-                    "close_reason"?: Database["public"]['Enums']["entry_close_reason"] | null,"closed_at"?: string | null,"closed_by"?: string | null,"consecutive_timeouts"?: number,"held_assignment_id"?: string | null,"id"?: string,"joined_at": string,"org_id": string,"paused_at"?: string | null,"queue_id": string,"seq": number,"status"?: Database["public"]['Enums']["entry_status"],"top3_notified_at"?: string | null,"user_id": string
+                    "close_reason"?: Database["public"]['Enums']["entry_close_reason"] | null,"closed_at"?: string | null,"closed_by"?: string | null,"held_assignment_id"?: string | null,"id"?: string,"joined_at": string,"org_id": string,"paused_at"?: string | null,"queue_id": string,"seq": number,"status"?: Database["public"]['Enums']["entry_status"],"top3_notified_at"?: string | null,"user_id": string
                   }
                   Update: {
-                    "close_reason"?: Database["public"]['Enums']["entry_close_reason"] | null,"closed_at"?: string | null,"closed_by"?: string | null,"consecutive_timeouts"?: number,"held_assignment_id"?: string | null,"id"?: string,"joined_at"?: string,"org_id"?: string,"paused_at"?: string | null,"queue_id"?: string,"seq"?: number,"status"?: Database["public"]['Enums']["entry_status"],"top3_notified_at"?: string | null,"user_id"?: string
+                    "close_reason"?: Database["public"]['Enums']["entry_close_reason"] | null,"closed_at"?: string | null,"closed_by"?: string | null,"held_assignment_id"?: string | null,"id"?: string,"joined_at"?: string,"org_id"?: string,"paused_at"?: string | null,"queue_id"?: string,"seq"?: number,"status"?: Database["public"]['Enums']["entry_status"],"top3_notified_at"?: string | null,"user_id"?: string
                   }
                   Relationships: [
                     {
@@ -390,52 +316,15 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
-                },"queue_members": {
-                  Row: {
-                    "added_at": string,"added_by": string | null,"org_id": string,"queue_id": string,"user_id": string
-                  }
-                  Insert: {
-                    "added_at"?: string,"added_by"?: string | null,"org_id": string,"queue_id": string,"user_id": string
-                  }
-                  Update: {
-                    "added_at"?: string,"added_by"?: string | null,"org_id"?: string,"queue_id"?: string,"user_id"?: string
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "queue_members_added_by_fkey"
-      columns: ["added_by"]
-isOneToOne: false
-      referencedRelation: "profiles"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "queue_members_org_id_fkey"
-      columns: ["org_id"]
-isOneToOne: false
-      referencedRelation: "organizations"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "queue_members_queue_id_fkey"
-      columns: ["queue_id"]
-isOneToOne: false
-      referencedRelation: "queues"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "queue_members_user_id_fkey"
-      columns: ["user_id"]
-isOneToOne: false
-      referencedRelation: "profiles"
-      referencedColumns: ["id"]
-    }
-                  ]
                 },"queues": {
                   Row: {
-                    "acceptance_window": string,"archived_at": string | null,"auto_pause_after_timeouts": number | null,"created_at": string,"created_by": string | null,"decline_policy": Database["public"]['Enums']["position_policy"],"description": string,"id": string,"lottery_drawn_at": string | null,"lottery_ends_at": string | null,"name": string,"no_show_cooldown": string,"no_show_policy": Database["public"]['Enums']["no_show_policy"],"org_id": string,"pausing_allowed": boolean,"reoffer_after_withdraw": Database["public"]['Enums']["reoffer_policy"],"timeout_policy": Database["public"]['Enums']["position_policy"],"version": number,"withdraw_cooldown": string
+                    "archived_at": string | null,"created_at": string,"created_by": string | null,"description": string,"id": string,"name": string,"org_id": string,"profession": Database["public"]['Enums']["profession"] | null,"version": number
                   }
                   Insert: {
-                    "acceptance_window"?: string,"archived_at"?: string | null,"auto_pause_after_timeouts"?: number | null,"created_at"?: string,"created_by"?: string | null,"decline_policy"?: Database["public"]['Enums']["position_policy"],"description"?: string,"id"?: string,"lottery_drawn_at"?: string | null,"lottery_ends_at"?: string | null,"name": string,"no_show_cooldown"?: string,"no_show_policy"?: Database["public"]['Enums']["no_show_policy"],"org_id": string,"pausing_allowed"?: boolean,"reoffer_after_withdraw"?: Database["public"]['Enums']["reoffer_policy"],"timeout_policy"?: Database["public"]['Enums']["position_policy"],"version"?: number,"withdraw_cooldown"?: string
+                    "archived_at"?: string | null,"created_at"?: string,"created_by"?: string | null,"description"?: string,"id"?: string,"name": string,"org_id": string,"profession"?: Database["public"]['Enums']["profession"] | null,"version"?: number
                   }
                   Update: {
-                    "acceptance_window"?: string,"archived_at"?: string | null,"auto_pause_after_timeouts"?: number | null,"created_at"?: string,"created_by"?: string | null,"decline_policy"?: Database["public"]['Enums']["position_policy"],"description"?: string,"id"?: string,"lottery_drawn_at"?: string | null,"lottery_ends_at"?: string | null,"name"?: string,"no_show_cooldown"?: string,"no_show_policy"?: Database["public"]['Enums']["no_show_policy"],"org_id"?: string,"pausing_allowed"?: boolean,"reoffer_after_withdraw"?: Database["public"]['Enums']["reoffer_policy"],"timeout_policy"?: Database["public"]['Enums']["position_policy"],"version"?: number,"withdraw_cooldown"?: string
+                    "archived_at"?: string | null,"created_at"?: string,"created_by"?: string | null,"description"?: string,"id"?: string,"name"?: string,"org_id"?: string,"profession"?: Database["public"]['Enums']["profession"] | null,"version"?: number
                   }
                   Relationships: [
                     {
@@ -454,13 +343,13 @@ isOneToOne: false
                   ]
                 },"shifts": {
                   Row: {
-                    "batch_id": string | null,"cancelled_reason": string | null,"created_at": string,"created_by": string | null,"ended_at": string | null,"ends_at": string,"id": string,"notes": string,"offer_round": number,"org_id": string,"published_at": string | null,"queue_id": string,"starts_at": string,"status": Database["public"]['Enums']["shift_status"],"unfilled_notified_at": string | null,"unit": string
+                    "batch_id": string | null,"cancelled_reason": string | null,"created_at": string,"created_by": string | null,"ended_at": string | null,"ends_at": string,"id": string,"notes": string,"org_id": string,"published_at": string | null,"queue_id": string,"slots": number,"start_processed_at": string | null,"starts_at": string,"status": Database["public"]['Enums']["shift_status"],"unit": string
                   }
                   Insert: {
-                    "batch_id"?: string | null,"cancelled_reason"?: string | null,"created_at"?: string,"created_by"?: string | null,"ended_at"?: string | null,"ends_at": string,"id"?: string,"notes"?: string,"offer_round"?: number,"org_id": string,"published_at"?: string | null,"queue_id": string,"starts_at": string,"status"?: Database["public"]['Enums']["shift_status"],"unfilled_notified_at"?: string | null,"unit"?: string
+                    "batch_id"?: string | null,"cancelled_reason"?: string | null,"created_at"?: string,"created_by"?: string | null,"ended_at"?: string | null,"ends_at": string,"id"?: string,"notes"?: string,"org_id": string,"published_at"?: string | null,"queue_id": string,"slots"?: number,"start_processed_at"?: string | null,"starts_at": string,"status"?: Database["public"]['Enums']["shift_status"],"unit"?: string
                   }
                   Update: {
-                    "batch_id"?: string | null,"cancelled_reason"?: string | null,"created_at"?: string,"created_by"?: string | null,"ended_at"?: string | null,"ends_at"?: string,"id"?: string,"notes"?: string,"offer_round"?: number,"org_id"?: string,"published_at"?: string | null,"queue_id"?: string,"starts_at"?: string,"status"?: Database["public"]['Enums']["shift_status"],"unfilled_notified_at"?: string | null,"unit"?: string
+                    "batch_id"?: string | null,"cancelled_reason"?: string | null,"created_at"?: string,"created_by"?: string | null,"ended_at"?: string | null,"ends_at"?: string,"id"?: string,"notes"?: string,"org_id"?: string,"published_at"?: string | null,"queue_id"?: string,"slots"?: number,"start_processed_at"?: string | null,"starts_at"?: string,"status"?: Database["public"]['Enums']["shift_status"],"unit"?: string
                   }
                   Relationships: [
                     {
@@ -489,38 +378,33 @@ isOneToOne: false
             [_ in never]: never
           }
           Functions: {
-            "accept_invite":
-{ Args: { "p_token": string }; Returns: string
-                           },
-"accept_offer":
-{ Args: { "p_offer": string }; Returns: string
-                           },
-"add_queue_members":
-{ Args: { "p_queue": string,"p_user_ids": (string)[] }; Returns: number
-                           },
-"admin_audit":
+            "admin_audit":
 { Args: { "p_before_id"?: number,"p_from"?: string,"p_limit"?: number,"p_org": string,"p_queue"?: string,"p_subject"?: string,"p_to"?: string,"p_types"?: (string)[] }; Returns: {
-              "actor_id": string,"actor_name": string,"created_at": string,"id": number,"payload": Json,"queue_id": string,"queue_name": string,"reason": string,"shift_id": string,"subject_id": string,"subject_name": string,"type": string
+              "actor_id": string,"actor_name": string,"created_at": string,"id": number,"payload": Json,"queue_id": string,"queue_profession": Database["public"]['Enums']["profession"],"reason": string,"shift_id": string,"subject_id": string,"subject_name": string,"type": string
             }[]
                            },
-"admin_members":
+"admin_hospital_code":
 { Args: { "p_org": string }; Returns: {
-              "display_name": string,"email": string,"joined_at": string,"queue_ids": (string)[],"role": Database["public"]['Enums']["member_role"],"status": Database["public"]['Enums']["member_status"],"user_id": string
+              "join_code": string,"rotated_at": string
+            }[]
+                           },
+"admin_professionals":
+{ Args: { "p_org": string }; Returns: {
+              "display_name": string,"email": string,"entry_joined_at": string,"member_since": string,"profession": Database["public"]['Enums']["profession"],"queue_id": string,"queue_position": number,"queue_state": string,"role": Database["public"]['Enums']["member_role"],"status": Database["public"]['Enums']["member_status"],"user_id": string
+            }[]
+                           },
+"admin_queue_overview":
+{ Args: { "p_org": string }; Returns: {
+              "assigned": number,"open_shifts": number,"open_slots": number,"paused": number,"profession": Database["public"]['Enums']["profession"],"queue_id": string,"waiting": number
             }[]
                            },
 "admin_remove_entry":
-{ Args: { "p_queue": string,"p_reason": string,"p_revoke_eligibility"?: boolean,"p_user": string }; Returns: undefined
+{ Args: { "p_queue": string,"p_reason": string,"p_user": string }; Returns: undefined
                            },
 "admin_shifts":
-{ Args: { "p_from"?: string,"p_org": string,"p_queue"?: string,"p_to"?: string }; Returns: {
-              "assignee_id": string,"assignee_name": string,"current_offer_expires_at": string,"current_offer_name": string,"current_offer_position": number,"current_offer_user": string,"declined_count": number,"ends_at": string,"expired_count": number,"notes": string,"offer_round": number,"published_at": string,"queue_id": string,"queue_name": string,"shift_id": string,"starts_at": string,"status": Database["public"]['Enums']["shift_status"],"unit": string
+{ Args: { "p_from"?: string,"p_org": string,"p_profession"?: Database["public"]['Enums']["profession"],"p_scope"?: string,"p_shift"?: string,"p_to"?: string }; Returns: {
+              "assignees": Json,"cancelled_reason": string,"ends_at": string,"filled": number,"notes": string,"profession": Database["public"]['Enums']["profession"],"published_at": string,"queue_id": string,"shift_id": string,"slots": number,"starts_at": string,"status": Database["public"]['Enums']["shift_status"],"unit": string
             }[]
-                           },
-"allow_rejoin":
-{ Args: { "p_queue": string,"p_reason"?: string,"p_user": string }; Returns: undefined
-                           },
-"archive_queue":
-{ Args: { "p_queue": string,"p_reason": string }; Returns: undefined
                            },
 "cancel_shift":
 { Args: { "p_reason"?: string,"p_shift": string }; Returns: undefined
@@ -536,25 +420,11 @@ isOneToOne: false
 "complete_shift":
 { Args: { "p_shift": string }; Returns: undefined
                            },
-"create_invite":
-{ Args: { "p_email"?: string,"p_expires_in"?: string,"p_kind": Database["public"]['Enums']["invite_kind"],"p_max_uses"?: number,"p_org": string,"p_queue_ids"?: (string)[],"p_role"?: Database["public"]['Enums']["member_role"] }; Returns: {
-              "invite_id": string,"token": string
-            }[]
-                           },
-"create_organization":
-{ Args: { "p_name": string,"p_timezone": string }; Returns: string
-                           },
-"create_queue":
-{ Args: { "p_description"?: string,"p_name": string,"p_org": string,"p_policy"?: Json }; Returns: string
-                           },
 "create_shifts":
-{ Args: { "p_publish"?: boolean,"p_queue": string,"p_shifts": Json }; Returns: string[]
+{ Args: { "p_org": string,"p_profession": Database["public"]['Enums']["profession"],"p_publish"?: boolean,"p_shifts": Json }; Returns: string[]
                            },
 "deactivate_member":
 { Args: { "p_org": string,"p_reason": string,"p_user": string }; Returns: undefined
-                           },
-"decline_offer":
-{ Args: { "p_offer": string }; Returns: undefined
                            },
 "delete_draft_shift":
 { Args: { "p_shift": string }; Returns: undefined
@@ -569,19 +439,18 @@ isOneToOne: false
 { Args: Record<PropertyKey, never>; Returns: Json
                            },
 "fairness_report":
-{ Args: { "p_from": string,"p_org": string,"p_queue"?: string,"p_to": string }; Returns: {
-              "avg_wait_hours": number,"display_name": string,"in_queue": boolean,"no_shows": number,"offers_declined": number,"offers_expired": number,"shifts_assigned": number,"shifts_completed": number,"user_id": string,"withdrawals": number
+{ Args: { "p_from": string,"p_org": string,"p_profession"?: Database["public"]['Enums']["profession"],"p_to": string }; Returns: {
+              "avg_wait_hours": number,"display_name": string,"given_back": number,"in_queue": boolean,"no_shows": number,"profession": Database["public"]['Enums']["profession"],"shifts_assigned": number,"shifts_completed": number,"user_id": string
             }[]
                            },
-"get_invite_preview":
-{ Args: { "p_token": string }; Returns: {
-              "org_name": string,"reason": string,"role": Database["public"]['Enums']["member_role"],"valid": boolean
-            }[]
+"give_back_shift":
+{ Args: { "p_reason"?: string,"p_shift": string }; Returns: undefined
                            },
-"get_offer":
-{ Args: { "p_offer": string }; Returns: {
-              "decline_policy": Database["public"]['Enums']["position_policy"],"ends_at": string,"expires_at": string,"notes": string,"offer_id": string,"offered_at": string,"org_id": string,"org_name": string,"org_timezone": string,"outcome": Database["public"]['Enums']["offer_outcome"],"queue_id": string,"queue_name": string,"server_now": string,"shift_id": string,"starts_at": string,"unit": string
-            }[]
+"hook_before_user_created":
+{ Args: { "event": Json }; Returns: Json
+                           },
+"join_hospital":
+{ Args: { "p_code": string,"p_profession": Database["public"]['Enums']["profession"] }; Returns: string
                            },
 "join_queue":
 { Args: { "p_queue": string }; Returns: string
@@ -590,19 +459,19 @@ isOneToOne: false
 { Args: { "p_queue": string }; Returns: undefined
                            },
 "mark_no_show":
-{ Args: { "p_reason"?: string,"p_shift": string }; Returns: undefined
+{ Args: { "p_assignment": string,"p_reason"?: string }; Returns: undefined
                            },
 "mark_notifications_read":
 { Args: { "p_ids"?: (string)[] }; Returns: undefined
                            },
-"my_queues":
+"my_queue":
 { Args: { "p_org"?: string }; Returns: {
-              "assigned_shift_id": string,"auto_rejoin": boolean,"cooldown_until": string,"description": string,"filled_30d": number,"joined_at": string,"lottery_ends_at": string,"lottery_pending": boolean,"needs_approval": boolean,"offer_expires_at": string,"offer_id": string,"org_id": string,"pausing_allowed": boolean,"queue_id": string,"queue_name": string,"queue_position": number,"queue_total": number,"state": string
+              "auto_rejoin": boolean,"joined_at": string,"org_id": string,"org_timezone": string,"profession": Database["public"]['Enums']["profession"],"queue_id": string,"queue_position": number,"queue_total": number,"shift_ends_at": string,"shift_id": string,"shift_notes": string,"shift_starts_at": string,"shift_unit": string,"state": string
             }[]
                            },
 "my_shifts":
 { Args: { "p_org"?: string,"p_scope"?: string }; Returns: {
-              "assigned_at": string,"assignment_id": string,"assignment_status": Database["public"]['Enums']["assignment_status"],"ends_at": string,"notes": string,"org_id": string,"org_timezone": string,"queue_id": string,"queue_name": string,"shift_id": string,"shift_status": Database["public"]['Enums']["shift_status"],"starts_at": string,"unit": string
+              "assigned_at": string,"assignment_id": string,"assignment_status": Database["public"]['Enums']["assignment_status"],"ends_at": string,"notes": string,"org_id": string,"org_timezone": string,"profession": Database["public"]['Enums']["profession"],"queue_id": string,"queue_position": number,"shift_id": string,"shift_status": Database["public"]['Enums']["shift_status"],"slots": number,"starts_at": string,"unit": string
             }[]
                            },
 "pause_queue":
@@ -613,16 +482,19 @@ isOneToOne: false
                            },
 "queue_roster":
 { Args: { "p_queue": string }; Returns: {
-              "assigned_shift_id": string,"display_name": string,"is_me": boolean,"joined_at": string,"offer_expires_at": string,"paused_at": string,"queue_position": number,"state": string,"user_id": string
+              "assigned_shift_id": string,"assigned_shift_starts_at": string,"display_name": string,"joined_at": string,"paused_at": string,"queue_position": number,"state": string,"user_id": string
             }[]
                            },
 "queue_stats":
 { Args: { "p_from": string,"p_org": string,"p_to": string }; Returns: {
-              "avg_time_to_fill_minutes": number,"avg_wait_hours": number,"paused": number,"queue_id": string,"queue_name": string,"queue_size": number,"shifts_filled": number,"shifts_published": number,"shifts_unfilled": number
+              "avg_time_to_fill_minutes": number,"avg_wait_hours": number,"paused": number,"profession": Database["public"]['Enums']["profession"],"queue_id": string,"queue_size": number,"shifts_published": number,"slots_filled": number,"slots_published": number
             }[]
                            },
 "reactivate_member":
 { Args: { "p_org": string,"p_user": string }; Returns: undefined
+                           },
+"regenerate_join_code":
+{ Args: { "p_org": string }; Returns: string
                            },
 "register_push_token":
 { Args: { "p_platform": string,"p_token": string }; Returns: undefined
@@ -630,20 +502,14 @@ isOneToOne: false
 "remove_member":
 { Args: { "p_org": string,"p_reason": string,"p_user": string }; Returns: undefined
                            },
-"remove_queue_member":
-{ Args: { "p_queue": string,"p_reason": string,"p_user": string }; Returns: undefined
-                           },
-"reoffer_shift":
-{ Args: { "p_shift": string }; Returns: undefined
-                           },
 "resume_queue":
 { Args: { "p_queue": string }; Returns: undefined
                            },
-"revoke_invite":
-{ Args: { "p_invite": string }; Returns: undefined
-                           },
 "server_time":
 { Args: Record<PropertyKey, never>; Returns: string
+                           },
+"set_member_profession":
+{ Args: { "p_org": string,"p_profession": Database["public"]['Enums']["profession"],"p_reason"?: string,"p_user": string }; Returns: undefined
                            },
 "set_member_role":
 { Args: { "p_org": string,"p_role": Database["public"]['Enums']["member_role"],"p_user": string }; Returns: undefined
@@ -651,29 +517,18 @@ isOneToOne: false
 "set_queue_auto_rejoin":
 { Args: { "p_enabled": boolean,"p_queue": string }; Returns: undefined
                            },
-"shift_offer_history":
-{ Args: { "p_shift": string }; Returns: {
-              "display_name": string,"expires_at": string,"offer_id": string,"offered_at": string,"outcome": Database["public"]['Enums']["offer_outcome"],"outcome_reason": string,"queue_position": number,"responded_at": string,"round": number,"user_id": string
-            }[]
-                           },
 "unregister_push_token":
 { Args: { "p_token": string }; Returns: undefined
                            },
 "update_organization":
-{ Args: { "p_name"?: string,"p_org": string,"p_staff_can_see_names"?: boolean,"p_timezone"?: string }; Returns: undefined
-                           },
-"update_queue":
-{ Args: { "p_description"?: string,"p_name"?: string,"p_policy"?: Json,"p_queue": string }; Returns: undefined
+{ Args: { "p_name"?: string,"p_org": string,"p_timezone"?: string }; Returns: undefined
                            },
 "update_shift":
 { Args: { "p_patch": Json,"p_shift": string }; Returns: undefined
-                           },
-"withdraw_assignment":
-{ Args: { "p_reason"?: string,"p_shift": string }; Returns: undefined
                            }
           }
           Enums: {
-            "assignment_status": "active"|"completed"|"no_show"|"cancelled"|"withdrawn","entry_close_reason": "completed"|"no_show"|"withdrew"|"left"|"removed"|"moved_to_end"|"deactivated"|"account_deleted"|"eligibility_revoked"|"queue_archived","entry_status": "waiting"|"paused"|"held","invite_kind": "email"|"code","member_role": "owner"|"admin"|"staff","member_status": "active"|"deactivated","no_show_policy": "rejoin_end"|"cooldown"|"admin_approval","offer_outcome": "accepted"|"declined"|"expired"|"revoked","position_policy": "keep"|"move_to_end","reoffer_policy": "restart"|"continue","shift_status": "draft"|"published"|"offered"|"assigned"|"completed"|"no_show"|"cancelled"|"unfilled"
+            "assignment_status": "active"|"completed"|"no_show"|"cancelled"|"withdrawn","entry_close_reason": "completed"|"no_show"|"withdrew"|"left"|"removed"|"moved_to_end"|"deactivated"|"account_deleted"|"eligibility_revoked"|"queue_archived"|"profession_changed","entry_status": "waiting"|"paused"|"held","member_role": "owner"|"admin"|"staff","member_status": "active"|"deactivated","profession": "doctor"|"nurse","shift_status": "draft"|"open"|"filled"|"completed"|"cancelled"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -793,7 +648,7 @@ export const Constants = {
           }
         },"public": {
           Enums: {
-            "assignment_status": ["active", "completed", "no_show", "cancelled", "withdrawn"],"entry_close_reason": ["completed", "no_show", "withdrew", "left", "removed", "moved_to_end", "deactivated", "account_deleted", "eligibility_revoked", "queue_archived"],"entry_status": ["waiting", "paused", "held"],"invite_kind": ["email", "code"],"member_role": ["owner", "admin", "staff"],"member_status": ["active", "deactivated"],"no_show_policy": ["rejoin_end", "cooldown", "admin_approval"],"offer_outcome": ["accepted", "declined", "expired", "revoked"],"position_policy": ["keep", "move_to_end"],"reoffer_policy": ["restart", "continue"],"shift_status": ["draft", "published", "offered", "assigned", "completed", "no_show", "cancelled", "unfilled"]
+            "assignment_status": ["active", "completed", "no_show", "cancelled", "withdrawn"],"entry_close_reason": ["completed", "no_show", "withdrew", "left", "removed", "moved_to_end", "deactivated", "account_deleted", "eligibility_revoked", "queue_archived", "profession_changed"],"entry_status": ["waiting", "paused", "held"],"member_role": ["owner", "admin", "staff"],"member_status": ["active", "deactivated"],"profession": ["doctor", "nurse"],"shift_status": ["draft", "open", "filled", "completed", "cancelled"]
           }
         }
 } as const

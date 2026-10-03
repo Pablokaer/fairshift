@@ -23,6 +23,33 @@ function sourceFiles(dir: string): string[] {
   });
 }
 
+function migrationSql(): string[] {
+  const dir = path.join(__dirname, '../../../supabase/migrations');
+  return fs.readdirSync(dir).map((f) => fs.readFileSync(path.join(dir, f), 'utf8'));
+}
+
+// Codes and event types that only exist in functions dropped by FairShift v2
+// (20261003000200_v2_schema.sql): offers, invites, pools, per-queue policies.
+// Historical audit rows of these types still render, with their raw type.
+const RETIRED = {
+  errors: new Set([
+    'invite.invalid_role', 'invite.invalid_expiry', 'invite.invalid_queue', 'invite.invalid_email', 'invite.not_found',
+    'invite.revoked', 'invite.expired', 'invite.used_up', 'invite.email_mismatch', 'invite.member_deactivated',
+    'queue.invalid_policy', 'queue.invalid_name', 'queue.lottery_already_drawn', 'queue.lottery_after_joins',
+    'queue.has_open_shifts', 'queue.needs_approval', 'queue.cooldown', 'queue.pausing_disabled', 'shift.not_assigned',
+    'offer.not_found', 'offer.not_open', 'offer.expired', 'offer.overlaps_assignment',
+  ]),
+  audit: new Set([
+    'invite.created', 'invite.revoked', 'pool.member_added', 'pool.member_removed', 'entry.moved_to_end',
+    'entry.auto_paused', 'queue.lottery_drawn', 'queue.updated', 'rejoin.approved', 'shift.reopened', 'shift.reoffered',
+    'shift.no_show', 'offer.created', 'offer.expired', 'offer.accepted', 'assignment.withdrawn',
+  ]),
+  notifications: new Set([
+    'pool_added', 'pool_removed', 'rejoin_allowed', 'offer_revoked', 'offer_received', 'offer_expired', 'offer_expiring',
+    'shift_unfilled', 'auto_paused', 'no_show_recorded', 'withdrawal',
+  ]),
+};
+
 describe('i18n', () => {
   it('en and pt-BR have exactly the same keys', () => {
     expect([...enKeys].filter((k) => !ptKeys.has(k))).toEqual([]);
@@ -42,35 +69,49 @@ describe('i18n', () => {
   });
 
   it('every database error code has a translation', () => {
-    const migrations = path.join(__dirname, '../../../supabase/migrations');
     const codes = new Set<string>();
-    for (const f of fs.readdirSync(migrations)) {
-      const sql = fs.readFileSync(path.join(migrations, f), 'utf8');
+    for (const sql of migrationSql()) {
       for (const m of sql.matchAll(/fail\('([a-z_.]+)'/g)) codes.add(m[1]);
     }
     expect(codes.size).toBeGreaterThan(30);
-    expect([...codes].filter((c) => !enKeys.has(`errors.${c}`))).toEqual([]);
+    expect([...codes].filter((c) => !RETIRED.errors.has(c) && !enKeys.has(`errors.${c}`))).toEqual([]);
+  });
+
+  it('every hook / sign-up error code has a translation', () => {
+    for (const c of ['hospital_code.required', 'hospital_code.invalid', 'profession.invalid', 'queue.permanent'])
+      expect(enKeys.has(`errors.${c}`)).toBe(true);
   });
 
   it('every audit event type and notification type has a label', () => {
-    const migrations = path.join(__dirname, '../../../supabase/migrations');
-    const sql = fs.readdirSync(migrations).map((f) => fs.readFileSync(path.join(migrations, f), 'utf8')).join('\n');
+    const sql = migrationSql().join('\n');
     const auditTypes = new Set([...sql.matchAll(/private\.audit\([^,]+,\s*'([a-z_]+\.[a-z_]+)'/g)].map((m) => m[1]));
-    ['offer.declined', 'offer.revoked'].forEach((x) => auditTypes.add(x));
-    expect([...auditTypes].filter((tpe) => !enKeys.has(`audit_types.${tpe}`))).toEqual([]);
+    expect([...auditTypes].filter((tpe) => !RETIRED.audit.has(tpe) && !enKeys.has(`audit_types.${tpe}`))).toEqual([]);
     const notifTypes = new Set(
-      [...sql.matchAll(/private\.notify(?:_admins)?\([^;]*?'([a-z_0-9]+)',\s*(?:\n\s*)?(?:jsonb_build_object|private\.shift_payload|'\{\}')/g)].map((m) => m[1]),
+      [...sql.matchAll(/private\.notify(?:_admins)?\([^;]*?'([a-z_0-9]+)',\s*(?:\n\s*)?(?:jsonb_build_object|private\.shift_payload|'\{\}')/g)].map(
+        (m) => m[1],
+      ),
     );
     expect(notifTypes.size).toBeGreaterThan(10);
-    expect([...notifTypes].filter((n) => !enKeys.has(`notif.${n}.title`))).toEqual([]);
+    expect([...notifTypes].filter((n) => !RETIRED.notifications.has(n) && !enKeys.has(`notif.${n}.title`))).toEqual([]);
   });
 
   it('dynamic key families are complete', () => {
-    for (const s of ['not_joined', 'waiting', 'paused', 'offered', 'assigned']) expect(enKeys.has(`states.${s}`)).toBe(true);
+    for (const s of ['not_joined', 'waiting', 'paused', 'assigned', 'no_profession']) expect(enKeys.has(`states.${s}`)).toBe(true);
     for (const r of ['owner', 'admin', 'staff']) expect(enKeys.has(`roles.${r}`)).toBe(true);
-    for (const s of ['draft', 'published', 'offered', 'assigned', 'completed', 'no_show', 'cancelled', 'unfilled'])
-      expect(enKeys.has(`shift_status.${s}`)).toBe(true);
-    for (const p of ['rejoin_end', 'cooldown', 'admin_approval']) expect(enKeys.has(`rules.no_show_${p}`)).toBe(true);
-    for (const o of ['accepted', 'declined', 'expired', 'revoked']) expect(enKeys.has(`offer.outcome_${o}`)).toBe(true);
+    for (const s of ['draft', 'open', 'filled', 'completed', 'cancelled']) expect(enKeys.has(`shift_status.${s}`)).toBe(true);
+    for (const a of ['active', 'completed', 'no_show', 'cancelled', 'withdrawn']) expect(enKeys.has(`assignment.${a}`)).toBe(true);
+    for (const p of ['doctor', 'nurse']) {
+      for (const ns of ['professions', 'professions_plural', 'queues', 'queue_in_sentence']) expect(enKeys.has(`${ns}.${p}`)).toBe(true);
+      expect(has(enKeys, `home.waiting_${p}`)).toBe(true);
+    }
+    for (const k of ['deactivate', 'remove', 'remove_entry'])
+      for (const suffix of ['', '_title', '_message']) expect(enKeys.has(`admin.${k}${suffix}`)).toBe(true);
+    for (const s of ['open', 'drafts', 'history']) {
+      expect(enKeys.has(`admin.no_${s}`)).toBe(true);
+      expect(enKeys.has(`admin.scope_${s}_help`)).toBe(true);
+    }
+    for (const r of ['order', 'slots', 'after_shift', 'pause', 'cancel', 'give_back', 'no_reorder', 'privacy'])
+      expect(enKeys.has(`rules.${r}`)).toBe(true);
+    for (const g of ['manager', 'doctors', 'nurses']) expect(enKeys.has(`dev.groups.${g}`)).toBe(true);
   });
 });

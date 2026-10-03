@@ -3,18 +3,23 @@
 **A fair, transparent, persistent queue for extra hospital shifts.** It replaces
 "whoever replies first in the WhatsApp group gets the shift".
 
-Each pool (e.g. *ICU Nurses*) has a first-in-first-out queue:
+Each hospital has exactly **two permanent queues: doctors and nurses.** Your
+profession decides which one you can join.
 
-- When an admin publishes a shift, it is offered to the first available person,
-  who has a set time (default 30 min) to accept.
-- Declining or timing out keeps your place (configurable).
-- Once you have worked a shift, you rejoin at the end.
-- Nobody, including admins, can reorder the queue, and every change is written
-  to an append-only audit log.
+- People join their queue when they want to. Their position depends only on the
+  server time they joined.
+- When a manager publishes a shift with **N slots**, it is assigned **at once**
+  to the first N available people of that profession's queue, in queue order.
+  There is no offer, no acceptance window and nothing to accept or decline.
+- The people assigned leave the line (everyone behind moves up, live). After
+  their shift they can rejoin, **always at the end**.
+- Nobody, including managers, can reorder a queue. Every change is written to
+  an append-only audit log.
+- Anyone can create an account, but only with their hospital's **hospital code**.
 
 One TypeScript codebase runs on **iOS, Android and web** (Expo + Expo Router).
-The backend is **Supabase**: Postgres, Auth, Realtime, Edge Functions, RLS and
-pg_cron.
+The backend is **Supabase**: Postgres, Auth (with a sign-up hook), Realtime,
+Edge Functions, RLS and pg_cron.
 
 See **[ARCHITECTURE.md](ARCHITECTURE.md)** for how fairness and correctness are
 guaranteed under concurrency.
@@ -25,16 +30,17 @@ guaranteed under concurrency.
 
 ```
 app/                    Expo app (iOS, Android, web)
-  src/app/              routes (Expo Router): (auth), (app)/(tabs), offer, queue, admin/*
-  src/components/       accessible UI kit, confirmation dialog, countdown
-  src/lib/              Supabase client, typed RPC hooks, realtime, push, time/tz utils
+  src/app/              routes (Expo Router): (auth), (app)/(tabs), admin/*
+  src/components/       accessible UI kit (Inter, light theme), dialogs, hospital code card
+  src/lib/              Supabase client, typed RPC hooks, realtime, push, time/tz utils, theme
   src/i18n/locales/     en.json, pt-BR.json
   .maestro/             native E2E flows (Maestro)
   eas.json              EAS Build / Submit profiles
 supabase/
   migrations/           schema, RLS, queue engine, scheduler, reports (all queue logic)
+                        20261003* = v2: hospital code, professions, multi-slot assignment
   functions/            Edge Functions: send-notifications, delete-account
-  tests/                pgTAP tests for queue rules 1–14 and tenancy
+  tests/                pgTAP tests (sign-up, queues, assignment, lifecycle, tenancy)
   seed.sql              demo hospital (runs on `supabase db reset`)
   templates/            magic-link e-mail (EN + PT, link + 6-digit code)
 tests/                  Vitest: concurrency tests (raw Postgres) + API tests (supabase-js)
@@ -49,11 +55,11 @@ e2e/                    Playwright web E2E tests
    │  supabase-js: Auth, RPC calls, private Realtime channels
    ▼
  Supabase
+   ├─ Auth ── before-user-created hook: no valid hospital code → no account
    ├─ Postgres: tables + RLS (read-only for clients)
-   │    └─ SECURITY DEFINER RPCs ── queue lock ── dispatcher ── audit log
+   │    └─ SECURITY DEFINER RPCs ── queue lock ── assignment engine ── audit log
    │                                         └── notification outbox ── pg_net ─┐
-   ├─ pg_cron (every 15 s): offer timeouts, 25 % reminders,                      │
-   │    auto-completion, unfilled shifts                                          │
+   ├─ pg_cron (every 15 s): shift start/end, auto-completion, short-staffed alerts│
    ├─ Realtime: content-free "queue changed" broadcasts → clients refetch        │
    └─ Edge Functions                                                             │
         ├─ send-notifications  (Expo push → e-mail fallback via Resend) ◄────────┘
@@ -66,7 +72,8 @@ e2e/                    Playwright web E2E tests
 
 - Node 22+ and pnpm 10 (`corepack enable`)
 - Docker (for the local Supabase stack)
-- Supabase CLI ≥ 2.x (`npm i -g supabase` or `brew install supabase/tap/supabase`)
+- Supabase CLI ≥ 2.x (`npm i -g supabase`, `brew install supabase/tap/supabase`,
+  or prefix the commands below with `npx`)
 - For native apps:
   - iOS: Xcode with an iOS simulator.
   - Android: Android Studio with an emulator.
@@ -85,29 +92,51 @@ pnpm android                                # Android emulator (127.0.0.1 is rew
 ```
 
 `supabase db reset` re-creates the database and the demo data at any time.
-Mailpit (http://127.0.0.1:54324) catches all auth e-mails locally. Without a
-Resend key, the notification function logs e-mails instead of sending them
+After changing `supabase/config.toml` (e.g. the auth hook), restart the stack
+with `supabase stop && supabase start`. Mailpit (http://127.0.0.1:54324)
+catches all auth e-mails locally. Without a Resend key, the notification
+function logs e-mails instead of sending them
 (`docker logs supabase_edge_runtime_fairshift`).
 
 ### Demo data
 
-**Hospital Demo São Lucas** (timezone America/Sao_Paulo). All passwords are `Password123!`.
+**Hospital Demo São Lucas** (timezone America/Sao_Paulo).
+**Hospital code: `SAOLUCAS`**. All passwords are `Password123!`.
 
 | Account | Role |
 |---|---|
-| `admin@demo.fairshift.app` | Owner / admin (scheduler) |
-| `nurse01` … `nurse12@demo.fairshift.app` | *ICU Nurses* queue, in that order (nurse05 is paused) |
-| `doctor01` … `doctor08@demo.fairshift.app` | *ER Doctors* queue (doctor08 worked a shift last week and auto-rejoined at the end) |
+| `manager@demo.fairshift.app` | Manager (owner), no clinical profession |
+| `doctor01` … `doctor10@demo.fairshift.app` | Doctors. 01–08 are in the doctors' queue: doctor01 worked a shift last week and auto-rejoined at the end, so the order is 02…08, 01. 09 and 10 have not joined. |
+| `nurse01` … `nurse10@demo.fairshift.app` | Nurses. 01–08 are in the nurses' queue in that order (nurse05 is unavailable). 09 and 10 have not joined. |
 
-There are three draft shifts (2 ICU, 1 ER) ready to publish.
+There are six draft shifts, three per profession, with 1, 2 and 3 slots.
+
+**Developer account switcher.** In development (`pnpm web` / `expo start`) with
+`EXPO_PUBLIC_DEV_ACCOUNT_SWITCHER=1` in `app/.env` (the default in
+`.env.example`), the home screen shows a dropdown listing every demo account.
+Picking one signs in as that person immediately. It is never rendered in
+production builds (`__DEV__` is false).
 
 **Acceptance walkthrough**
 
-1. Sign in as `admin`, go to **Admin → Shifts → Drafts**, select *ICU 2* and
-   publish it.
-2. On another simulator or browser, sign in as `nurse01`, tap **View offer**, then
-   **Accept shift**.
-3. Every other nurse's "You are #N of M" moves up live, with no refresh.
+1. Sign in as `doctor04`: the home screen shows **#3 of 8**.
+2. In another browser, sign in as `manager`, open **Manage → New shift**, choose
+   *Doctors*, 2 slots, *Publish now*. The shift screen shows doctor02 (#1) and
+   doctor03 (#2) assigned.
+3. Without refreshing, doctor04 now shows **#1 of 6**. The nurses' queue is unchanged.
+4. Create an account at `/sign-up?code=SAOLUCAS` as a nurse and tap **Join the queue**.
+
+### Creating a hospital (operators)
+
+Hospitals are provisioned by the operator, not in the app:
+
+```sql
+select * from private.provision_hospital('Hospital X', 'America/Sao_Paulo');  -- returns the hospital code
+-- The first manager signs up in the app with that code, then:
+select private.set_manager('<hospital id>', 'manager@example.org');           -- owner by default
+```
+
+Managers can then promote other managers from **Manage → Professionals**.
 
 ### Environment variables
 
@@ -115,8 +144,9 @@ There are three draft shifts (2 ICU, 1 ER) ready to publish.
 |---|---|---|
 | `app/.env` | `EXPO_PUBLIC_SUPABASE_URL` | Supabase API URL |
 | | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | anon / publishable key |
+| | `EXPO_PUBLIC_DEV_ACCOUNT_SWITCHER` | `1` shows the demo account switcher in development |
 | `supabase/.env` (local) or function secrets (cloud) | `FAIRSHIFT_CRON_SECRET` → `CRON_SECRET` | shared secret between pg_net and `send-notifications` |
-| | `FAIRSHIFT_APP_URL` → `APP_URL` | used in e-mail links (`/offer/<id>`, `/invite/<token>`) |
+| | `FAIRSHIFT_APP_URL` → `APP_URL` | used in e-mail links (`/shifts`, `/admin/shifts/<id>`) |
 | | `RESEND_API_KEY`, `EMAIL_FROM` | optional: real e-mail delivery (otherwise logged) |
 | | `EXPO_ACCESS_TOKEN` | optional: if enhanced push security is enabled in Expo |
 | Vault (DB) | `fairshift_functions_url`, `fairshift_cron_secret` | lets pg_net call the function (seeded locally) |
@@ -125,20 +155,25 @@ There are three draft shifts (2 ICU, 1 ER) ready to publish.
 
 ```bash
 supabase start                  # once
-pnpm test:db                    # pgTAP: rules 1–14, defaults F2–F9, RLS/tenancy, invites, regressions
-pnpm test:concurrency           # 50 parallel joins, accept-vs-timeout races, concurrent publishing, ...
-pnpm test:api                   # through Auth/PostgREST/Realtime/Edge Functions + the real pg_cron scheduler
-pnpm test:app                   # i18n completeness, WCAG AA contrast, utils
-pnpm build:web && pnpm test:e2e # Playwright: invite → join → offer → accept → complete → rejoin at end;
-                                # admin publishes and positions update live for other users
+pnpm test:db                    # pgTAP: hospital code + sign-up, professions, join order, multi-slot
+                                # assignment, overlap skip, cancel/give back/no-show, audit, tenancy
+pnpm test:concurrency           # 50 parallel joins, two managers publishing multi-slot shifts at once,
+                                # leave-vs-publish races, cross-hospital overlaps, code regeneration races
+pnpm test:api                   # through Auth (+ sign-up hook)/PostgREST/Realtime/Edge Functions + pg_cron
+pnpm test:app                   # i18n completeness (en, pt-BR), WCAG AA contrast, utils
+pnpm build:web && pnpm test:e2e # Playwright: sign up with the code → join → "#N of M" → 2-slot shift →
+                                # first 2 assigned, others drop by 2 live, nurses unaffected → rejoin at end
 pnpm test                       # everything except E2E
 ```
 
 - First Playwright run: `pnpm --filter @fairshift/e2e exec playwright install chromium`.
+- The E2E serves `app/dist` on port 8081. If that port is busy, serve it
+  yourself and set `E2E_BASE_URL` (e.g. `npx serve -s app/dist -l 8083` and
+  `E2E_BASE_URL=http://localhost:8083 pnpm test:e2e`).
 - Native E2E uses [Maestro](https://maestro.mobile.dev) on a development build:
   `maestro test app/.maestro/admin_publish_shift.yaml`, then
-  `staff_accept_offer.yaml` (and `staff_live_position.yaml` on a second
-  device).
+  `staff_sees_assignment.yaml` (and `staff_live_position.yaml` on a second
+  device at the same time).
 
 ## Deploy
 
@@ -161,6 +196,11 @@ select vault.create_secret('<same long-random CRON_SECRET>', 'fairshift_cron_sec
 ```
 
 In the dashboard:
+- **Authentication → Hooks**: enable **Before User Created** with the Postgres
+  function `public.hook_before_user_created`. Without it, an invalid code is still
+  refused by the database trigger (with a generic error), but a sign-up with no
+  code at all creates an account that is not linked to any hospital and can only
+  link itself later with a valid code.
 - **Authentication → URL configuration**: set the Site URL to your web app and
   add the redirect URLs `https://app.example.org/**` and `fairshift://**`.
 - **Authentication → Emails**: configure custom SMTP and paste
@@ -196,23 +236,35 @@ npx eas-cli@latest submit --profile production --platform all
   Android has no remote push; the app falls back to the inbox and e-mail.
 - Bundle ids are `app.fairshift.mobile` (change in `app/app.json`).
 
-## Product decisions (confirmed defaults)
+## Product decisions (confirmed)
 
-- **F1 opening-window lottery** and **F2 auto-pause after N timeouts**: available
-  per queue, **off by default**, so the default behaviour matches rules 1–14
-  exactly.
-- **F3** Unfilled shifts stay open until they start. Newcomers and people
-  resuming are offered them automatically, and admins can re-offer to everyone.
-- **F4** After a withdrawal, the offer round restarts from the front
-  (per-queue setting: *continue*).
-- **F5** People are skipped for shifts that overlap one they already hold or
-  have an open offer for. They keep their place.
-- **F6** Paused people count in "#N of M".
-- **F7** Removal can optionally revoke pool eligibility.
-- **F8** A completed shift can be corrected to a no-show for up to 7 days.
-- **F9** Disabling pausing leaves people who are already paused as they are.
-- **Times**: shifts are stored in UTC and shown in the organization's timezone.
-  The offer countdown follows the server clock, and Accept has no grace period.
-- **Editing**: after publishing, only a shift's notes can change. Cancel it (the
-  assignee keeps their place) and create a new one.
+- **a. Fewer people than slots**: everyone available is assigned; the shift stays
+  open and the remaining slots are filled automatically as people join, until it
+  starts. Managers are told when it is published short and again if it starts short.
+- **b. Giving a shift back**: allowed before it starts. The slot goes at once to
+  the person now first in line; the person who gave it back can rejoin only at
+  the end. Managers are notified. They are never re-assigned the same shift.
+- **c. Cancelling a shift**: the people assigned go back to their ORIGINAL
+  positions (their ticket keeps its number while they hold a shift). A started
+  shift can't be cancelled: mark it completed or record a no-show.
+- **d. Unavailable (pause)**: keeps your position, counts in "#N of M", but you
+  are skipped for shifts.
+- **e. Profession**: chosen at sign-up, editable by managers. Changing it removes
+  the person from their current queue (audited); not possible while they hold an
+  upcoming shift.
+- **f. Managers in a queue**: allowed when they have a profession. Their
+  assignments are flagged (`assignee_is_manager`) in the audit log.
+- **g. No-show**: recorded per person by a manager after the start; same
+  consequence as a completed shift (rejoin at the end). A completed shift can be
+  corrected to a no-show for up to 7 days.
+- **h. Hospitals** are provisioned by the operator (see above), never in the app.
+- **i. Existing data** (migrating a v1 database): old pools/queues are archived and
+  their tickets closed (audited); unfinished old shifts are cancelled or
+  completed; staff keep their membership without a profession until a manager sets it.
+- **Overlaps**: a person is skipped (for that shift only, keeping their place)
+  when they already hold an overlapping shift, e.g. at another hospital.
+- **Times**: shifts are stored in UTC and shown in the hospital's timezone.
+- **Editing**: after publishing, only a shift's notes can change. Cancel it and
+  create a new one.
+- **Privacy**: colleagues never see each other's names; only managers do.
 - **Web push**: none. Web relies on live updates, the inbox and e-mail.

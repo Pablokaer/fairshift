@@ -1,18 +1,20 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { View } from 'react-native';
 import { useConfirm } from '@/components/Confirm';
 import { setAppLocale } from '@/components/LanguageSwitcher';
 import { OrgSwitcher } from '@/components/OrgSwitcher';
-import { Banner, Body, Button, Card, Chip, Field, Gap, H1, H2, ListRow, Row, Screen, Small } from '@/components/ui';
+import { Banner, Body, Button, Card, Chip, Field, Gap, H1, H2, ListRow, ProfessionTag, Row, Screen, Small, Toggle } from '@/components/ui';
 import { SUPPORTED_LOCALES, type AppLocale } from '@/i18n';
-import { rpc, useProfile } from '@/lib/api';
+import { rpc, useMyQueue, useProfile } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { saveTextFile } from '@/lib/download';
 import { errorMessage } from '@/lib/errors';
 import { useOrg } from '@/lib/org';
 import { supabase } from '@/lib/supabase';
 import { space } from '@/lib/theme';
+import { useQueueActions } from '@/lib/useQueueActions';
 
 export default function Settings() {
   const { t, i18n } = useTranslation();
@@ -20,6 +22,8 @@ export default function Settings() {
   const userId = session?.user.id ?? null;
   const profile = useProfile(userId);
   const { current } = useOrg();
+  const myQueue = useMyQueue(current?.org_id);
+  const actions = useQueueActions();
   const confirm = useConfirm();
   const [name, setName] = useState('');
   const [msg, setMsg] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
@@ -78,17 +82,45 @@ export default function Settings() {
     await supabase.auth.signOut();
   };
 
+  const me = myQueue.data;
   return (
     <Screen edges={['top']}>
       <H1>{t('settings.title')}</H1>
       {msg ? <Banner kind={msg.kind}>{msg.text}</Banner> : null}
+      {actions.error ? <Banner kind="error">{actions.error}</Banner> : null}
+
+      <H2 style={{ marginTop: 0 }}>{t('settings.hospital')}</H2>
+      <Card>
+        <OrgSwitcher />
+        {current ? (
+          <View style={{ gap: space.sm }}>
+            <Body>{t('settings.role_line', { role: t(`roles.${current.role}`), tz: current.org.timezone })}</Body>
+            {current.profession ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm, flexWrap: 'wrap' }}>
+                <ProfessionTag profession={current.profession} />
+                <Small>{t('settings.profession_by_managers')}</Small>
+              </View>
+            ) : (
+              <Small>{t('settings.no_profession')}</Small>
+            )}
+          </View>
+        ) : null}
+        {me?.queue_id ? (
+          <Toggle
+            testID="auto-rejoin"
+            label={t('queue.auto_rejoin')}
+            hint={t('queue.auto_rejoin_hint')}
+            value={me.auto_rejoin ?? false}
+            onValueChange={(v) => actions.setAutoRejoin(me, v)}
+          />
+        ) : null}
+      </Card>
 
       <H2>{t('settings.profile')}</H2>
       <Card>
-        <Small>{session?.user.email}</Small>
-        <Gap size={space.sm} />
+        <Small style={{ marginBottom: space.md }}>{session?.user.email}</Small>
         <Field label={t('auth.display_name')} value={name} onChangeText={setName} hint={t('auth.display_name_hint')} />
-        <Button title={t('common.save')} onPress={saveName} loading={busy === 'name'} disabled={name.trim().length < 2} />
+        <Button title={t('common.save')} variant="secondary" onPress={saveName} loading={busy === 'name'} disabled={name.trim().length < 2} />
       </Card>
 
       <H2>{t('settings.language')}</H2>
@@ -98,25 +130,23 @@ export default function Settings() {
         ))}
       </Row>
 
-      <H2>{t('settings.organization')}</H2>
-      <OrgSwitcher />
-      {current ? <Body muted>{t('settings.org_role', { role: t(`roles.${current.role}`), tz: current.org.timezone })}</Body> : null}
+      <H2>{t('settings.more')}</H2>
       <Card>
-        <ListRow icon="key" title={t('onboarding.join_with_code')} onPress={() => router.push('/onboarding')} />
-        <ListRow icon="notifications" title={t('settings.notifications')} onPress={() => router.push('/notification-settings')} />
-        <ListRow icon="shield" title={t('privacy.title')} onPress={() => router.push('/privacy')} />
+        <ListRow icon="notifications-outline" title={t('settings.notifications')} onPress={() => router.push('/notification-settings')} />
+        <ListRow icon="key-outline" title={t('settings.link_hospital')} onPress={() => router.push('/onboarding')} />
+        <ListRow icon="shield-checkmark-outline" title={t('privacy.title')} onPress={() => router.push('/privacy')} last />
       </Card>
 
       <H2>{t('settings.your_data')}</H2>
       <Card>
         <Body muted style={{ marginBottom: space.md }}>{t('settings.data_explainer')}</Body>
-        <Button title={t('settings.export')} variant="secondary" icon="download" onPress={exportData} loading={busy === 'export'} />
+        <Button title={t('settings.export')} variant="secondary" icon="download-outline" onPress={exportData} loading={busy === 'export'} />
         <Gap size={space.sm} />
-        <Button title={t('settings.delete_account')} variant="danger" icon="trash" onPress={deleteAccount} loading={busy === 'delete'} />
+        <Button title={t('settings.delete_account')} variant="dangerOutline" icon="trash-outline" onPress={deleteAccount} loading={busy === 'delete'} />
       </Card>
 
       <Gap />
-      <Button testID="sign-out" title={t('auth.sign_out')} variant="secondary" icon="log-out" onPress={() => supabase.auth.signOut()} />
+      <Button testID="sign-out" title={t('auth.sign_out')} variant="secondary" icon="log-out-outline" onPress={() => supabase.auth.signOut()} />
     </Screen>
   );
 }

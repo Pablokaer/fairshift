@@ -1,5 +1,5 @@
 // Drains public.notification_outbox: Expo push first, then e-mail (fallback for
-// offers when push could not be delivered, or always when the user opted in).
+// shift assignments when push could not be delivered, or always when the user opted in).
 // Invoked by pg_cron / pg_net with `Authorization: Bearer $CRON_SECRET`.
 import { rpc } from '../_shared/rest.ts';
 import { emailHtml, render, type Locale } from '../_shared/templates.ts';
@@ -37,8 +37,8 @@ async function sendPush(row: OutboxRow): Promise<Result> {
     title: r.title,
     body: r.body,
     sound: 'default',
-    priority: row.template.startsWith('offer_') ? 'high' : 'default',
-    channelId: row.template.startsWith('offer_') ? 'offers' : 'default',
+    priority: row.template === 'shift_assigned' ? 'high' : 'default',
+    channelId: row.template === 'shift_assigned' ? 'shifts' : 'default',
     data: { url: r.url, type: row.template },
   }));
   const res = await fetch('https://exp.host/--/api/v2/push/send', {
@@ -66,8 +66,7 @@ async function sendEmail(row: OutboxRow): Promise<Result> {
   const to = row.to_email ?? row.user_email;
   if (!to) return { status: 'skipped', error: 'no_email' };
   const r = render(row.template, row.payload, row.locale);
-  const link =
-    row.template === 'invite' ? `${APP_URL}/invite/${row.payload.token}` : r.url ? `${APP_URL}${r.url}` : APP_URL;
+  const link = r.url ? `${APP_URL}${r.url}` : APP_URL;
   const subject = r.subject ?? r.title;
   if (!RESEND_API_KEY) {
     // Local development: no provider configured. Log instead of sending.

@@ -29,21 +29,6 @@ export function fmtRange(startIso: string, endIso: string, tz: string, locale: s
   return `${fmtDate(startIso, tz, locale)}, ${fmtTime(startIso, tz, locale)}–${fmtTime(endIso, tz, locale)}`;
 }
 
-/** Duration in whole minutes between two instants, never negative. */
-export function minutesBetween(a: number, b: number) {
-  return Math.max(0, Math.floor((b - a) / 60_000));
-}
-
-/** mm:ss or h:mm:ss for a countdown. */
-export function fmtCountdown(ms: number) {
-  const total = Math.max(0, Math.ceil(ms / 1000));
-  const h = Math.floor(total / 3600);
-  const m = Math.floor((total % 3600) / 60);
-  const s = total % 60;
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
-}
-
 /** "YYYY-MM-DD" for today in a timezone. */
 export function todayIn(tz: string): string {
   try {
@@ -64,14 +49,3 @@ export function addDays(ymd: string, days: number): string {
 
 export const isYmd = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(`${s}T00:00:00Z`));
 export const isHm = (s: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(s);
-
-/** Postgres interval text ("00:30:00", "1 day 02:00:00") -> minutes. */
-export function intervalMinutes(v: string | null | undefined): number {
-  if (!v) return 0;
-  let minutes = 0;
-  const days = /(-?\d+) days?/.exec(v);
-  if (days) minutes += Number(days[1]) * 1440;
-  const hms = /(-?\d+):(\d{2}):(\d{2})/.exec(v);
-  if (hms) minutes += Number(hms[1]) * 60 + Number(hms[2]) + Number(hms[3]) / 60;
-  return minutes;
-}

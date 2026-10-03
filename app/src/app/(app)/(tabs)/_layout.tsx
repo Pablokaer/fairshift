@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useInbox } from '@/lib/api';
 import { useUserId } from '@/lib/auth';
 import { useOrg } from '@/lib/org';
-import { useTheme } from '@/lib/theme';
+import { font, useTheme } from '@/lib/theme';
 
 export default function TabsLayout() {
   const { t } = useTranslation();
@@ -17,30 +17,30 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: c.primary,
+        tabBarActiveTintColor: c.primaryStrong,
         tabBarInactiveTintColor: c.textMuted,
         // Screens render their own H1, so the tab header would only repeat it.
         headerShown: false,
         tabBarStyle: {
           backgroundColor: c.surface,
           borderTopColor: c.border,
-          ...(Platform.OS === 'web' ? { height: 64, paddingBottom: 8, paddingTop: 6 } : null),
+          ...(Platform.OS === 'web' ? { height: 72, paddingBottom: 12, paddingTop: 8 } : null),
         },
-        tabBarLabelStyle: { fontSize: 12, lineHeight: 16, fontWeight: '600' },
+        tabBarLabelStyle: { fontSize: 12, lineHeight: 16, fontFamily: font.semibold },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: t('tabs.queues'),
-          tabBarIcon: ({ color, size }) => <Ionicons name="people" color={color} size={size} />,
+          title: t('tabs.home'),
+          tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? 'people' : 'people-outline'} color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="shifts"
         options={{
           title: t('tabs.shifts'),
-          tabBarIcon: ({ color, size }) => <Ionicons name="calendar" color={color} size={size} />,
+          tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? 'calendar' : 'calendar-outline'} color={color} size={size} />,
         }}
       />
       <Tabs.Screen
@@ -48,8 +48,11 @@ export default function TabsLayout() {
         options={{
           title: t('tabs.inbox'),
           tabBarBadge: unread > 0 ? unread : undefined,
+          tabBarBadgeStyle: { backgroundColor: c.danger, color: c.onDanger, fontFamily: font.semibold },
           tabBarAccessibilityLabel: unread > 0 ? t('inbox.unread_label', { count: unread }) : t('tabs.inbox'),
-          tabBarIcon: ({ color, size }) => <Ionicons name="notifications" color={color} size={size} />,
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? 'notifications' : 'notifications-outline'} color={color} size={size} />
+          ),
         }}
       />
       <Tabs.Screen
@@ -57,14 +60,14 @@ export default function TabsLayout() {
         options={{
           title: t('tabs.admin'),
           href: isAdmin ? undefined : null,
-          tabBarIcon: ({ color, size }) => <Ionicons name="shield-checkmark" color={color} size={size} />,
+          tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? 'grid' : 'grid-outline'} color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
           title: t('tabs.settings'),
-          tabBarIcon: ({ color, size }) => <Ionicons name="settings" color={color} size={size} />,
+          tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? 'settings' : 'settings-outline'} color={color} size={size} />,
         }}
       />
     </Tabs>

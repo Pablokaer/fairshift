@@ -5,11 +5,14 @@ import { authStorage } from './storage';
 import { supabase } from './supabase';
 
 export type Role = 'owner' | 'admin' | 'staff';
+export type Profession = 'doctor' | 'nurse';
 
 export interface OrgMembership {
   org_id: string;
   role: Role;
-  org: { id: string; name: string; timezone: string; staff_can_see_names: boolean };
+  /** Doctor or nurse in this hospital; null for a manager without a clinical role. */
+  profession: Profession | null;
+  org: { id: string; name: string; timezone: string };
 }
 
 interface OrgState {
@@ -36,13 +39,13 @@ export function OrgProvider({ children }: { children: ReactNode }) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('memberships')
-        .select('org_id, role, organizations(id, name, timezone, staff_can_see_names)')
+        .select('org_id, role, profession, organizations(id, name, timezone)')
         .eq('user_id', userId!)
         .eq('status', 'active');
       if (error) throw error;
       return (data ?? [])
         .filter((m) => m.organizations)
-        .map((m) => ({ org_id: m.org_id, role: m.role as Role, org: m.organizations! }))
+        .map((m) => ({ org_id: m.org_id, role: m.role as Role, profession: m.profession, org: m.organizations! }))
         .sort((a, b) => a.org.name.localeCompare(b.org.name));
     },
   });

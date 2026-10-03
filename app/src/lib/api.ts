@@ -10,18 +10,30 @@ export type RpcName = keyof Fns;
 export type RpcArgs<N extends RpcName> = Fns[N]['Args'];
 export type RpcReturn<N extends RpcName> = Fns[N]['Returns'];
 
-export type MyQueue = RpcReturn<'my_queues'>[number];
+export type Profession = Database['public']['Enums']['profession'];
+export type MyQueue = RpcReturn<'my_queue'>[number];
 export type MyShift = RpcReturn<'my_shifts'>[number];
-export type Offer = RpcReturn<'get_offer'>[number];
 export type RosterRow = RpcReturn<'queue_roster'>[number];
 export type AdminShift = RpcReturn<'admin_shifts'>[number];
+export type QueueOverview = RpcReturn<'admin_queue_overview'>[number];
 export type AuditRow = RpcReturn<'admin_audit'>[number];
-export type Member = RpcReturn<'admin_members'>[number];
+export type Professional = RpcReturn<'admin_professionals'>[number];
 export type FairnessRow = RpcReturn<'fairness_report'>[number];
 export type QueueStat = RpcReturn<'queue_stats'>[number];
-export type QueueRow = Tables['queues']['Row'];
-export type InviteRow = Tables['invites']['Row'];
 export type NotificationRow = Tables['notifications']['Row'];
+
+/** One person assigned to a shift (admin_shifts.assignees). */
+export interface Assignee {
+  assignment_id: string;
+  user_id: string;
+  display_name: string;
+  status: Database['public']['Enums']['assignment_status'];
+  position: number | null;
+  assigned_at: string;
+  reason: string | null;
+}
+
+export const assigneesOf = (s: AdminShift) => (s.assignees as unknown as Assignee[]) ?? [];
 
 export async function rpc<N extends RpcName>(name: N, args?: RpcArgs<N>): Promise<RpcReturn<N>> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -42,11 +54,12 @@ export function useRpc<N extends RpcName>(name: N) {
 // ---------------------------------------------------------------------------
 // Staff
 // ---------------------------------------------------------------------------
-export function useMyQueues(orgId: string | undefined) {
+/** The caller's queue in this hospital: state, own position and the total. */
+export function useMyQueue(orgId: string | undefined) {
   return useQuery({
-    queryKey: ['my_queues', orgId],
+    queryKey: ['my_queue', orgId],
     enabled: !!orgId,
-    queryFn: () => rpc('my_queues', { p_org: orgId }),
+    queryFn: async () => (await rpc('my_queue', { p_org: orgId }))[0] ?? null,
     refetchInterval: 60_000, // safety net if the realtime connection drops
   });
 }
@@ -56,14 +69,6 @@ export function useMyShifts(scope: 'upcoming' | 'past', orgId: string | undefine
     queryKey: ['my_shifts', scope, orgId],
     enabled: !!orgId,
     queryFn: () => rpc('my_shifts', { p_scope: scope, p_org: orgId }),
-  });
-}
-
-export function useOffer(offerId: string | undefined) {
-  return useQuery({
-    queryKey: ['offer', offerId],
-    enabled: !!offerId,
-    queryFn: async () => (await rpc('get_offer', { p_offer: offerId! }))[0] ?? null,
   });
 }
 
@@ -108,91 +113,69 @@ export function useProfile(userId: string | null) {
 }
 
 // ---------------------------------------------------------------------------
-// Admin
+// Managers
 // ---------------------------------------------------------------------------
-export function useQueues(orgId: string | undefined) {
+export function useHospitalCode(orgId: string | undefined) {
   return useQuery({
-    queryKey: ['queues', orgId],
+    queryKey: ['hospital_code', orgId],
     enabled: !!orgId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('queues')
-        .select('*')
-        .eq('org_id', orgId!)
-        .is('archived_at', null)
-        .order('name');
-      if (error) throw error;
-      return data;
-    },
+    queryFn: async () => (await rpc('admin_hospital_code', { p_org: orgId! }))[0] ?? null,
   });
 }
 
-export function useQueue(queueId: string | undefined) {
+export function useQueueOverview(orgId: string | undefined) {
   return useQuery({
-    queryKey: ['queue', queueId],
-    enabled: !!queueId,
-    queryFn: async () => {
-      const { data, error } = await supabase.from('queues').select('*').eq('id', queueId!).single();
-      if (error) throw error;
-      return data;
-    },
+    queryKey: ['queue_overview', orgId],
+    enabled: !!orgId,
+    queryFn: () => rpc('admin_queue_overview', { p_org: orgId! }),
+    refetchInterval: 60_000,
   });
 }
 
-export function useRoster(queueId: string | undefined, enabled = true) {
+export function useRoster(queueId: string | undefined) {
   return useQuery({
     queryKey: ['roster', queueId],
-    enabled: !!queueId && enabled,
+    enabled: !!queueId,
     queryFn: () => rpc('queue_roster', { p_queue: queueId! }),
     refetchInterval: 60_000,
   });
 }
 
-export function useAdminShifts(orgId: string | undefined, queueId?: string) {
+export type ShiftScope = 'open' | 'drafts' | 'history';
+
+export function useAdminShifts(
+  orgId: string | undefined,
+  scope: ShiftScope,
+  filters: { profession?: Profession | null; days?: number | null } = {},
+) {
   return useQuery({
-    queryKey: ['admin_shifts', orgId, queueId],
+    queryKey: ['admin_shifts', orgId, scope, filters],
     enabled: !!orgId,
     queryFn: () =>
       rpc('admin_shifts', {
         p_org: orgId!,
-        p_queue: queueId,
-        p_from: new Date(Date.now() - 14 * 86_400_000).toISOString(),
-        p_to: new Date(Date.now() + 120 * 86_400_000).toISOString(),
+        p_scope: scope,
+        p_profession: filters.profession ?? undefined,
+        p_from: filters.days ? new Date(Date.now() - filters.days * 86_400_000).toISOString() : undefined,
+        p_to: filters.days ? new Date(Date.now() + 60 * 86_400_000).toISOString() : undefined,
       }),
     refetchInterval: 60_000,
   });
 }
 
-export function useShiftHistory(shiftId: string | undefined) {
+export function useAdminShift(orgId: string | undefined, shiftId: string | undefined) {
   return useQuery({
-    queryKey: ['shift_history', shiftId],
-    enabled: !!shiftId,
-    queryFn: () => rpc('shift_offer_history', { p_shift: shiftId! }),
+    queryKey: ['admin_shift', orgId, shiftId],
+    enabled: !!orgId && !!shiftId,
+    queryFn: async () => (await rpc('admin_shifts', { p_org: orgId!, p_shift: shiftId! }))[0] ?? null,
   });
 }
 
-export function useMembers(orgId: string | undefined) {
+export function useProfessionals(orgId: string | undefined) {
   return useQuery({
-    queryKey: ['members', orgId],
+    queryKey: ['professionals', orgId],
     enabled: !!orgId,
-    queryFn: () => rpc('admin_members', { p_org: orgId! }),
-  });
-}
-
-export function useInvites(orgId: string | undefined) {
-  return useQuery({
-    queryKey: ['invites', orgId],
-    enabled: !!orgId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('invites')
-        .select('id, kind, email, code, role, queue_ids, expires_at, max_uses, use_count, revoked_at, created_at')
-        .eq('org_id', orgId!)
-        .order('created_at', { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => rpc('admin_professionals', { p_org: orgId! }),
   });
 }
 
@@ -221,15 +204,15 @@ export function useAudit(orgId: string | undefined, f: AuditFilters) {
   });
 }
 
-export function useFairness(orgId: string | undefined, days: number, queueId?: string | null) {
+export function useFairness(orgId: string | undefined, days: number, profession?: Profession | null) {
   return useQuery({
-    queryKey: ['fairness', orgId, days, queueId],
+    queryKey: ['fairness', orgId, days, profession],
     enabled: !!orgId,
     queryFn: async () => {
       const from = new Date(Date.now() - days * 86_400_000).toISOString();
       const to = new Date(Date.now() + 86_400_000).toISOString();
       const [people, queues] = await Promise.all([
-        rpc('fairness_report', { p_org: orgId!, p_from: from, p_to: to, p_queue: queueId ?? undefined }),
+        rpc('fairness_report', { p_org: orgId!, p_from: from, p_to: to, p_profession: profession ?? undefined }),
         rpc('queue_stats', { p_org: orgId!, p_from: from, p_to: to }),
       ]);
       return { people, queues };

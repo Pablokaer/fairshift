@@ -1,24 +1,47 @@
+# Maestro flow (iOS simulator / Android emulator, development build).
+# Precondition: `supabase db reset` (seed). The manager creates a doctors'
+# shift with 2 slots and publishes it: doctor02 and doctor03 (#1 and #2 in the
+# doctors' queue) are assigned at once. Run staff_live_position.yaml on a second
+# device at the same time to watch doctor04 move from #3 to #1 live.
 appId: app.fairshift.mobile
 ---
 - launchApp:
     clearState: true
 - tapOn:
     id: "email"
-- inputText: "admin@demo.fairshift.app"
+- inputText: "manager@demo.fairshift.app"
 - tapOn:
     id: "password"
 - inputText: "Password123!"
 - tapOn:
     id: "sign-in"
 - extendedWaitUntil:
-    visible: "Admin"
+    visible: "Manage|Gestão"
     timeout: 20000
-- tapOn: "Admin"
-- tapOn: "Shifts|Plantões"
-- tapOn: "Drafts|Rascunhos"
+- tapOn: "Manage|Gestão"
+- assertVisible:
+    id: "hospital-code"
 - tapOn:
-    id: "admin-shift-ICU 2"
+    id: "new-shift"
 - tapOn:
-    id: "publish-selected"
-- tapOn: "Open|Abertos"
-- assertVisible: ".*(Offered to|Oferecido a) Ana Souza.*"
+    id: "profession-doctor"
+- tapOn:
+    id: "shift-unit"
+- inputText: "Maestro ward"
+- tapOn:
+    id: "slots-more"
+- assertVisible:
+    id: "shift-slots"
+    text: "2"
+- scrollUntilVisible:
+    element:
+      id: "create-shift"
+- tapOn:
+    id: "create-shift"
+- extendedWaitUntil:
+    visible:
+      id: "slots-filled"
+      text: "2/2"
+    timeout: 20000
+- assertVisible: ".*Dr\. Rafael Costa.*"
+- assertVisible: ".*Dra\. Sofia Barros.*"

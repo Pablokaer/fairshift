@@ -1,96 +1,105 @@
 import { expect, test } from '@playwright/test';
-import { confirmDialog, signIn, sql } from './helpers';
+import { HOSPITAL_CODE, confirmDialog, expectPosition, queueOrder, signIn, sql } from './helpers';
 
-// Core flow: invite -> join -> offer -> accept -> complete -> rejoin at the END.
-test('invite, join, offer, accept, complete, rejoin at the end', async ({ browser }) => {
+// Core flow: sign up with the hospital code as a doctor -> join the queue ->
+// see "#N of M" -> a manager publishes a 2-slot doctors' shift -> the first 2
+// doctors get it under My shifts, everyone else drops by 2 LIVE (no reload),
+// nurses are unaffected -> the shift completes -> rejoin at the END.
+test('hospital code sign-up, multi-slot assignment, live positions, rejoin at the end', async ({ browser }) => {
   const suffix = Math.random().toString(36).slice(2, 7);
-  const queueName = `E2E Queue ${suffix}`;
-  const newEmail = `e2e.${suffix}@example.test`;
+  const unit = `E2E ward ${suffix}`;
 
-  // 1. Admin creates a queue.
-  const admin = await signIn(browser, 'admin@demo.fairshift.app');
-  await admin.goto('/admin/queues/new');
-  await admin.getByTestId('queue-name').fill(queueName);
-  await admin.getByTestId('create-queue').click();
-  await expect(admin.getByText('Live', { exact: true })).toBeVisible();
-
-  // 2. Admin creates an invite code that grants this queue's pool.
-  await admin.goto('/admin/staff');
-  await admin.getByRole('tab', { name: 'Invite code' }).click();
-  await admin.getByRole('checkbox', { name: queueName }).click();
-  await admin.getByTestId('create-invite').click();
-  const code = (await admin.getByTestId('invite-token').innerText()).trim();
-  expect(code).toMatch(/^[A-Z0-9]{8}$/);
-
-  // 3. A new person signs up and joins the organization with the code.
+  // 1. A new doctor creates an account with the hospital code (pre-filled from the share link).
   const ctx = await browser.newContext({ locale: 'en-US' });
-  const nurse = await ctx.newPage();
-  await nurse.goto('/sign-up');
-  await nurse.getByTestId('name').fill('Erin Example');
-  await nurse.getByTestId('email').fill(newEmail);
-  await nurse.getByTestId('password').fill('Password123!');
-  await nurse.getByTestId('create-account').click();
-  await nurse.getByTestId('invite-code').fill(code);
-  await nurse.getByTestId('join-org').click();
-  await expect(nurse.getByText('Your queues')).toBeVisible();
+  const newcomer = await ctx.newPage();
+  await newcomer.goto(`/sign-up?code=${HOSPITAL_CODE}`);
+  await expect(newcomer.getByTestId('hospital-code')).toHaveValue(HOSPITAL_CODE);
+  await newcomer.getByTestId('profession-doctor').click();
+  await newcomer.getByTestId('name').fill('Dr. Erin Example');
+  await newcomer.getByTestId('email').fill(`e2e.${suffix}@example.test`);
+  await newcomer.getByTestId('password').fill('Password123!');
+  await newcomer.getByTestId('create-account').click();
+  await expect(newcomer.getByText('Your queue', { exact: true })).toBeVisible();
 
-  // ...and joins the queue.
-  await nurse.getByTestId(`join-${queueName}`).click();
-  await expect(nurse.getByText(`Join ${queueName}?`)).toBeVisible();
-  await confirmDialog(nurse);
-  await expect(nurse.getByTestId(`position-${queueName}`)).toHaveText('You are #1 of 1');
+  // 2. Not in the queue yet: the big button and the waiting count.
+  const before = await queueOrder('doctor');
+  await expect(newcomer.getByTestId('waiting-count')).toHaveText(`${before.length} doctors waiting`);
+  await newcomer.getByTestId('join-queue').click();
+  await expect(newcomer.getByText('Join the doctors\' queue?')).toBeVisible();
+  await confirmDialog(newcomer);
+  const total = before.length + 1;
+  await expectPosition(newcomer, total, total);
 
-  // A colleague (seeded nurse02) is added to the pool and joins behind.
-  const [{ id: queueId }] = await sql<{ id: string }>(`select id from public.queues where name = $1`, [queueName]);
-  await admin.goto(`/admin/queues/${queueId}`);
-  await admin.getByRole('tab', { name: 'Pool' }).click();
-  await admin.getByTestId('pool-add-Bruno Lima').click();
-  const colleague = await signIn(browser, 'nurse02@demo.fairshift.app');
-  await colleague.getByTestId(`join-${queueName}`).click();
-  await confirmDialog(colleague);
-  await expect(colleague.getByTestId(`position-${queueName}`)).toHaveText('You are #2 of 2');
+  // Others keep watching their screens (no reloads from here on).
+  const [first, second, third] = before;
+  const thirdPage = await signIn(browser, third.email);
+  await expectPosition(thirdPage, 3, total);
+  const nurse = await signIn(browser, 'nurse02@demo.fairshift.app');
+  const nurses = await queueOrder('nurse');
+  await expectPosition(nurse, 2, nurses.length);
 
-  // 4. Admin creates and publishes a shift for tomorrow.
-  await admin.goto('/admin/shifts/new');
-  await admin.getByRole('checkbox', { name: queueName }).click();
-  await admin.getByTestId('shift-unit').fill(`Unit ${suffix}`);
-  await admin.getByTestId('create-shifts').click();
-  await expect(admin.getByText(`Unit ${suffix}`)).toBeVisible();
+  // 3. The manager creates a doctors' shift with 2 slots and publishes it now.
+  const manager = await signIn(browser, 'manager@demo.fairshift.app');
+  await manager.goto('/admin/shifts/new');
+  await manager.getByTestId('profession-doctor').click();
+  await manager.getByTestId('shift-unit').fill(unit);
+  await manager.getByTestId('slots-more').click();
+  await expect(manager.getByTestId('shift-slots')).toHaveText('2');
+  await manager.getByTestId('create-shift').click();
 
-  // 5. The first person gets the offer (live) and accepts it.
-  await nurse.getByTestId(`view-offer-${queueId}`).click();
-  await expect(nurse.getByText(`Shift offer: ${queueName}`)).toBeVisible();
-  await expect(nurse.getByRole('timer')).toBeVisible();
-  await nurse.getByTestId('accept-offer').click();
-  await expect(nurse.getByText("You accepted this shift. It's yours!")).toBeVisible();
-  await expect(colleague.getByTestId(`position-${queueName}`)).toHaveText('You are #1 of 1');
+  // After publishing, the manager sees who was assigned: the first two, in order.
+  await expect(manager.getByTestId('slots-filled')).toHaveText('2/2');
+  await expect(manager.getByTestId(`assignee-${first.name}`)).toContainText('#1');
+  await expect(manager.getByTestId(`assignee-${second.name}`)).toContainText('#2');
 
-  // 6. Time travel (test only): the shift is now in progress.
-  await sql(
-    `update public.shifts set starts_at = now() - interval '6 hours', ends_at = now() + interval '1 hour'
-     where queue_id = $1 and unit = $2`,
-    [queueId, `Unit ${suffix}`],
+  // 4. Everyone behind moves up by 2, live. Nurses are unaffected.
+  await expectPosition(newcomer, total - 2, total - 2);
+  await expectPosition(thirdPage, 1, total - 2);
+  await expectPosition(nurse, 2, nurses.length);
+
+  // 5. The first two doctors see the shift under My shifts (and on their home screen).
+  const firstPage = await signIn(browser, first.email);
+  await expect(firstPage.getByTestId('assigned-shift')).toContainText(unit);
+  await firstPage.goto('/shifts');
+  await expect(firstPage.getByText(unit)).toBeVisible();
+  const secondPage = await signIn(browser, second.email);
+  await secondPage.goto('/shifts');
+  await expect(secondPage.getByText(unit)).toBeVisible();
+
+  // 6. The shift ends (test-only time travel) and the scheduler completes it.
+  const [{ id: shiftId, queue_id: queueId }] = await sql<{ id: string; queue_id: string }>(
+    `select id, queue_id from public.shifts where unit = $1`,
+    [unit],
   );
+  await sql(`update public.shifts set starts_at = now() - interval '13 hours', ends_at = now() - interval '1 hour' where id = $1`, [shiftId]);
+  await sql(`select private.process_queue($1)`, [queueId]);
+  expect((await sql<{ status: string }>(`select status from public.shifts where id = $1`, [shiftId]))[0].status).toBe('completed');
 
-  // 7. Admin marks it completed.
-  await admin.goto('/admin/shifts');
-  await admin.getByText('Assigned', { exact: true }).click();
-  await admin.getByTestId(`admin-shift-Unit ${suffix}`).click();
-  await admin.getByTestId('complete-shift').click();
-  await confirmDialog(admin);
-  await expect(admin.getByText('Completed', { exact: true })).toBeVisible();
-
-  // 8. The person is told they can rejoin, and rejoins at the END.
-  await nurse.goto('/inbox');
-  await expect(nurse.getByText('Your shift is done. Rejoin the queue?')).toBeVisible();
-  await nurse.goto('/');
-  await nurse.getByTestId(`join-${queueName}`).click();
-  await confirmDialog(nurse);
-  await expect(nurse.getByTestId(`position-${queueName}`)).toHaveText('You are #2 of 2');
+  // 7. The doctor is told they can rejoin, and rejoins at the END.
+  await firstPage.goto('/inbox');
+  await expect(firstPage.getByText('Your shift is done. Rejoin the queue?')).toBeVisible();
+  await firstPage.goto('/');
+  await firstPage.getByTestId('join-queue').click();
+  await confirmDialog(firstPage);
+  await expectPosition(firstPage, total - 1, total - 1);
+  await expectPosition(newcomer, total - 2, total - 1);
 
   // Everything is in the audit log.
-  const types = await sql<{ type: string }>(`select type from public.audit_events where queue_id = $1 order by id`, [queueId]);
+  const types = await sql<{ type: string }>(`select type from public.audit_events where shift_id = $1 order by id`, [shiftId]);
   expect(types.map((t) => t.type)).toEqual(
-    expect.arrayContaining(['queue.created', 'entry.joined', 'offer.created', 'offer.accepted', 'shift.assigned', 'shift.completed']),
+    expect.arrayContaining(['shift.created', 'shift.published', 'shift.assigned', 'shift.filled', 'shift.completed']),
   );
+});
+
+test('sign-up is refused without a valid hospital code', async ({ browser }) => {
+  const ctx = await browser.newContext({ locale: 'en-US' });
+  const page = await ctx.newPage();
+  await page.goto('/sign-up');
+  await page.getByTestId('hospital-code').fill('WRONG234');
+  await page.getByTestId('profession-nurse').click();
+  await page.getByTestId('name').fill('No Code');
+  await page.getByTestId('email').fill(`nocode.${Math.random().toString(36).slice(2, 7)}@example.test`);
+  await page.getByTestId('password').fill('Password123!');
+  await page.getByTestId('create-account').click();
+  await expect(page.getByText("That hospital code isn't valid.", { exact: false })).toBeVisible();
 });

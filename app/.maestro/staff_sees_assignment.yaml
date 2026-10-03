@@ -1,0 +1,20 @@
+# Run after admin_publish_shift.yaml: doctor02 (who was #1) has the shift.
+appId: app.fairshift.mobile
+---
+- launchApp:
+    clearState: true
+- tapOn:
+    id: "email"
+- inputText: "doctor02@demo.fairshift.app"
+- tapOn:
+    id: "password"
+- inputText: "Password123!"
+- tapOn:
+    id: "sign-in"
+- extendedWaitUntil:
+    visible:
+      id: "assigned-shift"
+    timeout: 20000
+- assertVisible: ".*Maestro ward.*"
+- tapOn: "See my shifts|Ver meus plantões"
+- assertVisible: ".*Maestro ward.*"

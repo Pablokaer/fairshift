@@ -3,12 +3,13 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { RefreshControl, View } from 'react-native';
 import { useConfirm } from '@/components/Confirm';
-import { Badge, Banner, Body, Button, Card, Empty, Gap, H1, Loading, Screen, Segmented, Small } from '@/components/ui';
+import { ShiftDetails } from '@/components/ShiftDetails';
+import { AssignmentBadge } from '@/components/ShiftStatusBadge';
+import { Banner, Button, Card, Empty, Gap, H1, Loading, ProfessionTag, Screen, Segmented, Small } from '@/components/ui';
 import { rpc, useMyShifts, type MyShift } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { useOrg } from '@/lib/org';
 import { space } from '@/lib/theme';
-import { fmtDate, fmtTime } from '@/lib/time';
 
 export default function Shifts() {
   const { t } = useTranslation();
@@ -25,41 +26,44 @@ export default function Shifts() {
         value={scope}
         onChange={setScope}
         options={[
-          { value: 'upcoming', label: t('shifts.upcoming') },
-          { value: 'past', label: t('shifts.past') },
+          { value: 'upcoming', label: t('shifts.upcoming'), testID: 'shifts-upcoming' },
+          { value: 'past', label: t('shifts.past'), testID: 'shifts-past' },
         ]}
       />
       {error ? <Banner kind="error">{error}</Banner> : null}
-      {shifts.isLoading ? <Loading label={t('common.loading')} /> : null}
+      {shifts.isLoading ? <Loading label={t('common.loading')} cards={2} /> : null}
       {shifts.data?.length === 0 ? (
-        <Empty title={scope === 'upcoming' ? t('shifts.none_upcoming') : t('shifts.none_past')} icon="calendar-outline" />
+        <Empty
+          title={scope === 'upcoming' ? t('shifts.none_upcoming') : t('shifts.none_past')}
+          message={scope === 'upcoming' ? t('shifts.none_upcoming_help') : undefined}
+          icon="calendar-outline"
+        />
       ) : null}
-      {shifts.data?.map((s) => <ShiftCard key={s.assignment_id} s={s} canWithdraw={scope === 'upcoming'} onError={setError} />)}
+      {shifts.data?.map((s) => <ShiftCard key={s.assignment_id} s={s} upcoming={scope === 'upcoming'} onError={setError} />)}
     </Screen>
   );
 }
 
-function ShiftCard({ s, canWithdraw, onError }: { s: MyShift; canWithdraw: boolean; onError: (e: string | null) => void }) {
-  const { t, i18n } = useTranslation();
+function ShiftCard({ s, upcoming, onError }: { s: MyShift; upcoming: boolean; onError: (e: string | null) => void }) {
+  const { t } = useTranslation();
   const confirm = useConfirm();
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
-  const loc = i18n.language;
   const started = new Date(s.starts_at).getTime() <= Date.now();
 
-  const withdraw = async () => {
+  const giveBack = async () => {
     const reason = await confirm({
-      title: t('shifts.withdraw_title'),
-      message: t('shifts.withdraw_message'),
-      confirmLabel: t('shifts.withdraw'),
+      title: t('shifts.give_back_title'),
+      message: t('shifts.give_back_message'),
+      confirmLabel: t('shifts.give_back'),
       destructive: true,
-      input: { label: t('shifts.withdraw_reason'), minLength: 0, multiline: true },
+      input: { label: t('shifts.give_back_reason'), minLength: 0, multiline: true },
     });
     if (reason === false) return;
     setBusy(true);
     onError(null);
     try {
-      await rpc('withdraw_assignment', { p_shift: s.shift_id, p_reason: typeof reason === 'string' && reason ? reason : undefined });
+      await rpc('give_back_shift', { p_shift: s.shift_id, p_reason: typeof reason === 'string' && reason ? reason : undefined });
     } catch (e) {
       onError(errorMessage(e));
     } finally {
@@ -68,22 +72,18 @@ function ShiftCard({ s, canWithdraw, onError }: { s: MyShift; canWithdraw: boole
     }
   };
 
-  const tone = s.assignment_status === 'active' ? 'assigned' : s.assignment_status === 'completed' ? 'waiting' : 'neutral';
   return (
-    <Card>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: space.sm, flexWrap: 'wrap' }}>
-        <Body style={{ fontWeight: '700', fontSize: 17, flexShrink: 1 }}>{fmtDate(s.starts_at, s.org_timezone, loc)}</Body>
-        <Badge label={t(`assignment.${s.assignment_status}`)} tone={tone} />
+    <Card testID={`my-shift-${s.shift_id}`}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space.sm, flexWrap: 'wrap', marginBottom: space.md }}>
+        <ProfessionTag profession={s.profession} size="sm" />
+        <AssignmentBadge status={s.assignment_status} />
       </View>
-      <Body>
-        {fmtTime(s.starts_at, s.org_timezone, loc)} – {fmtTime(s.ends_at, s.org_timezone, loc)} · {s.queue_name}
-      </Body>
-      {s.unit ? <Small>{s.unit}</Small> : null}
-      {s.notes ? <Small>{s.notes}</Small> : null}
-      {canWithdraw && s.assignment_status === 'active' && !started ? (
+      <ShiftDetails startsAt={s.starts_at} endsAt={s.ends_at} tz={s.org_timezone} unit={s.unit} notes={s.notes} />
+      {s.queue_position ? <Small style={{ marginTop: space.sm }}>{t('shifts.position_at', { position: s.queue_position })}</Small> : null}
+      {upcoming && s.assignment_status === 'active' && !started ? (
         <>
-          <Gap size={space.sm} />
-          <Button title={t('shifts.withdraw')} variant="secondary" onPress={withdraw} loading={busy} />
+          <Gap />
+          <Button title={t('shifts.give_back')} variant="dangerOutline" icon="return-down-back-outline" onPress={giveBack} loading={busy} />
         </>
       ) : null}
     </Card>

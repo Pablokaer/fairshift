@@ -1,12 +1,12 @@
 import { useTranslation } from 'react-i18next';
-import { Badge } from './ui';
+import { Badge, type BadgeTone } from './ui';
 
-const TONES: Record<string, 'waiting' | 'paused' | 'offered' | 'assigned' | 'neutral'> = {
+const TONES: Record<string, BadgeTone> = {
   waiting: 'waiting',
   paused: 'paused',
-  offered: 'offered',
   assigned: 'assigned',
   not_joined: 'neutral',
+  no_profession: 'neutral',
 };
 
 export function QueueStateBadge({ state }: { state: string }) {

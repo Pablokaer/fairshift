@@ -1,61 +1,48 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, RefreshControl, View } from 'react-native';
+import { useConfirm } from '@/components/Confirm';
 import { ShiftStatusBadge } from '@/components/ShiftStatusBadge';
-import { Banner, Body, Button, Card, Chip, Empty, Gap, Loading, Row, Screen, Small } from '@/components/ui';
-import { rpc, useAdminShifts, useQueues, type AdminShift } from '@/lib/api';
+import { Banner, Body, Button, Card, Chip, Empty, Loading, ProfessionTag, Row, Screen, Segmented, Small } from '@/components/ui';
+import { assigneesOf, rpc, useAdminShifts, type AdminShift, type Profession, type ShiftScope } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { useOrg } from '@/lib/org';
-import { space, useTheme } from '@/lib/theme';
-import { fmtDate, fmtTime } from '@/lib/time';
+import { font, space, useTheme } from '@/lib/theme';
+import { fmtRange } from '@/lib/time';
 
-type Filter = 'open' | 'draft' | 'assigned' | 'past' | 'all';
+const PERIODS = [7, 30, 90, 0] as const;
 
 export default function AdminShifts() {
-  const { t, i18n } = useTranslation();
-  const c = useTheme();
+  const { t } = useTranslation();
   const { current } = useOrg();
-  const queues = useQueues(current?.org_id);
-  const [queueId, setQueueId] = useState<string | undefined>();
-  const [filter, setFilter] = useState<Filter>('open');
-  const shifts = useAdminShifts(current?.org_id, queueId);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const confirm = useConfirm();
   const qc = useQueryClient();
-
-  const list = useMemo(() => {
-    const now = Date.now();
-    return (shifts.data ?? []).filter((s) => {
-      const future = new Date(s.ends_at).getTime() > now;
-      switch (filter) {
-        case 'open':
-          return ['published', 'offered', 'unfilled'].includes(s.status) && future;
-        case 'draft':
-          return s.status === 'draft';
-        case 'assigned':
-          return s.status === 'assigned';
-        case 'past':
-          return !future && s.status !== 'draft';
-        default:
-          return true;
-      }
-    });
-  }, [shifts.data, filter]);
-
-  if (shifts.isLoading || !current) return <Loading label={t('common.loading')} />;
-  const tz = current.org.timezone;
-  const loc = i18n.language;
+  const [scope, setScope] = useState<ShiftScope>('open');
+  const [profession, setProfession] = useState<Profession | null>(null);
+  const [days, setDays] = useState<number>(30);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const shifts = useAdminShifts(current?.org_id, scope, { profession, days: scope === 'history' ? days || null : null });
 
   const publish = async () => {
+    const ok = await confirm({
+      title: t('admin.publish_title', { count: selected.length }),
+      message: t('admin.publish_message'),
+      confirmLabel: t('admin.publish'),
+    });
+    if (!ok) return;
     setBusy(true);
     setError(null);
     try {
-      await rpc('publish_shifts', { p_shift_ids: [...selected] });
-      setSelected(new Set());
-      setFilter('open');
+      await rpc('publish_shifts', { p_shift_ids: selected });
+      const first = selected.length === 1 ? selected[0] : null;
+      setSelected([]);
+      if (first) router.push(`/admin/shifts/${first}`);
+      else setScope('history');
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -64,60 +51,63 @@ export default function AdminShifts() {
     }
   };
 
-  const toggle = (id: string) => {
-    const next = new Set(selected);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setSelected(next);
-  };
-
+  const rows = shifts.data ?? [];
   return (
     <Screen refreshControl={<RefreshControl refreshing={shifts.isRefetching} onRefresh={() => shifts.refetch()} />}>
-      <Button title={t('admin.new_shifts')} icon="add-circle" onPress={() => router.push('/admin/shifts/new')} />
-      <Gap />
-      <Row>
-        <Chip label={t('admin.all_queues')} selected={!queueId} onPress={() => setQueueId(undefined)} />
-        {queues.data?.map((q) => (
-          <Chip key={q.id} label={q.name} selected={queueId === q.id} onPress={() => setQueueId(q.id)} />
-        ))}
+      <Segmented
+        label={t('admin.shifts')}
+        value={scope}
+        onChange={(v) => {
+          setScope(v);
+          setSelected([]);
+        }}
+        options={[
+          { value: 'open', label: t('admin.scope_open'), testID: 'scope-open' },
+          { value: 'drafts', label: t('admin.scope_drafts'), testID: 'scope-drafts' },
+          { value: 'history', label: t('admin.scope_history'), testID: 'scope-history' },
+        ]}
+      />
+      <Row style={{ marginBottom: space.sm }}>
+        <Chip label={t('common.all')} selected={!profession} onPress={() => setProfession(null)} />
+        <Chip label={t('professions_plural.doctor')} selected={profession === 'doctor'} onPress={() => setProfession('doctor')} />
+        <Chip label={t('professions_plural.nurse')} selected={profession === 'nurse'} onPress={() => setProfession('nurse')} />
       </Row>
-      <Gap size={space.sm} />
-      <Row>
-        {(['open', 'draft', 'assigned', 'past', 'all'] as Filter[]).map((f) => (
-          <Chip key={f} label={t(`admin.filter_${f}`)} selected={filter === f} onPress={() => setFilter(f)} />
-        ))}
-      </Row>
-      <Gap />
-      {error ? <Banner kind="error">{error}</Banner> : null}
-      {filter === 'draft' && list.length > 0 ? (
-        <View style={{ marginBottom: space.md }}>
-          <Row>
-            <Button
-              variant="secondary"
-              title={selected.size === list.length ? t('admin.select_none') : t('admin.select_all')}
-              onPress={() => setSelected(selected.size === list.length ? new Set() : new Set(list.map((s) => s.shift_id)))}
-            />
-            <Button
-              testID="publish-selected"
-              title={t('admin.publish_n', { count: selected.size })}
-              icon="send"
-              onPress={publish}
-              loading={busy}
-              disabled={selected.size === 0}
-            />
-          </Row>
-        </View>
+      {scope === 'history' ? (
+        <Row style={{ marginBottom: space.sm }}>
+          {PERIODS.map((d) => (
+            <Chip key={d} label={d ? t('admin.last_days', { count: d }) : t('admin.all_time')} selected={days === d} onPress={() => setDays(d)} />
+          ))}
+        </Row>
       ) : null}
-      {list.length === 0 ? <Empty title={t('admin.no_shifts')} icon="calendar-outline" /> : null}
-      {list.map((s) => (
+      <Small style={{ marginBottom: space.md }}>{t(`admin.scope_${scope}_help`)}</Small>
+      {error ? <Banner kind="error">{error}</Banner> : null}
+
+      <Button testID="new-shift" title={t('admin.new_shift')} icon="add-circle-outline" onPress={() => router.push('/admin/shifts/new')} />
+      {scope === 'drafts' && selected.length > 0 ? (
+        <Button
+          testID="publish-selected"
+          title={t('admin.publish_selected', { count: selected.length })}
+          icon="paper-plane-outline"
+          variant="secondary"
+          onPress={publish}
+          loading={busy}
+          style={{ marginTop: space.sm }}
+        />
+      ) : null}
+      <View style={{ height: space.md }} />
+
+      {shifts.isLoading ? <Loading label={t('common.loading')} cards={2} /> : null}
+      {!shifts.isLoading && rows.length === 0 ? (
+        <Empty icon="calendar-clear-outline" title={t(`admin.no_${scope}`)} />
+      ) : null}
+      {rows.map((s) => (
         <ShiftRow
           key={s.shift_id}
           s={s}
-          tz={tz}
-          loc={loc}
-          selectable={filter === 'draft'}
-          selected={selected.has(s.shift_id)}
-          onToggle={() => toggle(s.shift_id)}
+          tz={current?.org.timezone ?? 'UTC'}
+          selectable={scope === 'drafts'}
+          selected={selected.includes(s.shift_id)}
+          onToggle={() => setSelected((x) => (x.includes(s.shift_id) ? x.filter((y) => y !== s.shift_id) : [...x, s.shift_id]))}
         />
       ))}
     </Screen>
@@ -127,63 +117,56 @@ export default function AdminShifts() {
 function ShiftRow({
   s,
   tz,
-  loc,
   selectable,
   selected,
   onToggle,
 }: {
   s: AdminShift;
   tz: string;
-  loc: string;
   selectable: boolean;
   selected: boolean;
   onToggle: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const c = useTheme();
-  const progress =
-    s.status === 'offered' && s.current_offer_name
-      ? t('admin.offered_to', {
-          name: s.current_offer_name,
-          position: s.current_offer_position,
-          time: fmtTime(s.current_offer_expires_at, tz, loc),
-        })
-      : s.status === 'assigned' || s.status === 'completed' || s.status === 'no_show'
-        ? t('admin.assigned_to', { name: s.assignee_name || t('common.deleted_user') })
-        : s.status === 'published'
-          ? t('admin.waiting_for_free')
-          : s.status === 'unfilled'
-            ? t('admin.unfilled_hint')
-            : '';
+  const people = assigneesOf(s).filter((a) => a.status !== 'withdrawn' && a.status !== 'cancelled');
+  const range = fmtRange(s.starts_at, s.ends_at, tz, i18n.language);
   return (
-    <Card>
-      <Pressable
-        testID={`admin-shift-${s.unit}`}
-        accessibilityRole={selectable ? 'checkbox' : 'button'}
-        accessibilityState={selectable ? { checked: selected } : undefined}
-        accessibilityLabel={`${s.queue_name}, ${fmtDate(s.starts_at, tz, loc)} ${fmtTime(s.starts_at, tz, loc)}, ${t(`shift_status.${s.status}`)}. ${progress}`}
-        onPress={selectable ? onToggle : () => router.push(`/admin/shifts/${s.shift_id}`)}
-        onLongPress={() => router.push(`/admin/shifts/${s.shift_id}`)}
-      >
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: space.sm, flexWrap: 'wrap' }}>
-          <Body style={{ fontWeight: '700', flexShrink: 1 }}>
-            {selectable ? (selected ? '☑ ' : '☐ ') : ''}
-            {fmtDate(s.starts_at, tz, loc)} · {fmtTime(s.starts_at, tz, loc)}–{fmtTime(s.ends_at, tz, loc)}
-          </Body>
-          <ShiftStatusBadge status={s.status} />
-        </View>
-        <Small>
-          {s.queue_name}
-          {s.unit ? ` · ${s.unit}` : ''}
-        </Small>
-        {progress ? <Body style={{ color: c.text, marginTop: space.xs }}>{progress}</Body> : null}
-        {s.declined_count + s.expired_count > 0 ? (
-          <Small>{t('admin.declined_expired', { declined: s.declined_count, expired: s.expired_count })}</Small>
+    <Card testID={`shift-${s.unit}`} style={selected ? { borderWidth: 2, borderColor: c.primary } : undefined}>
+      <View style={{ flexDirection: 'row', gap: space.md, alignItems: 'flex-start' }}>
+        {selectable ? (
+          <Pressable
+            testID={`select-${s.unit}`}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: selected }}
+            accessibilityLabel={t('admin.select_shift', { range })}
+            onPress={onToggle}
+            hitSlop={8}
+            style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Ionicons name={selected ? 'checkbox' : 'square-outline'} size={26} color={c.primary} />
+          </Pressable>
         ) : null}
-      </Pressable>
-      {selectable ? (
-        <Button variant="ghost" title={t('admin.open_details')} onPress={() => router.push(`/admin/shifts/${s.shift_id}`)} />
-      ) : null}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${range}. ${s.unit}. ${t('admin.slots_filled', { filled: s.filled, slots: s.slots })}`}
+          onPress={() => router.push(`/admin/shifts/${s.shift_id}`)}
+          style={{ flex: 1 }}
+        >
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: space.sm, flexWrap: 'wrap', marginBottom: space.sm }}>
+            <ProfessionTag profession={s.profession} size="sm" />
+            <ShiftStatusBadge status={s.status} />
+          </View>
+          <Body style={{ fontFamily: font.semibold }}>{range}</Body>
+          {s.unit ? <Small>{s.unit}</Small> : null}
+          <Small style={{ marginTop: space.xs }}>{t('admin.slots_filled', { filled: s.filled, slots: s.slots })}</Small>
+          {people.length ? (
+            <Small numberOfLines={2}>
+              {people.map((a) => `#${a.position ?? '–'} ${a.display_name || t('common.deleted_user')}`).join(' · ')}
+            </Small>
+          ) : null}
+        </Pressable>
+      </View>
     </Card>
   );
 }

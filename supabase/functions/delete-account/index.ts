@@ -1,6 +1,6 @@
 // GDPR/LGPD account deletion.
-// 1. As the user: public.delete_my_account() closes tickets, withdraws future
-//    shifts (so they are re-offered fairly) and anonymizes the profile.
+// 1. As the user: public.delete_my_account() closes tickets, gives back future
+//    shifts (the slot goes to the next person in line) and anonymizes the profile.
 // 2. As service role: delete the auth user (e-mail, password, sessions).
 // Audit-log rows are never modified; they keep pointing at the now-anonymous id.
 import { adminDeleteUser, getUser, rpc } from '../_shared/rest.ts';

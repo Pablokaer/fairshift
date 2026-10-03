@@ -1,124 +1,196 @@
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { Pressable, RefreshControl, StyleSheet, View } from 'react-native';
+import { RefreshControl, Text, View } from 'react-native';
+import { DevAccountSwitcher } from '@/components/DevAccountSwitcher';
 import { OrgSwitcher } from '@/components/OrgSwitcher';
 import { QueueStateBadge } from '@/components/QueueStateBadge';
-import { Banner, Body, Button, Card, Empty, Gap, H1, Loading, Screen, Small } from '@/components/ui';
-import { useMyQueues, type MyQueue } from '@/lib/api';
+import { ShiftDetails } from '@/components/ShiftDetails';
+import { Banner, Body, Button, Card, Empty, Gap, H1, H2, Loading, Overline, ProfessionTag, Screen, Small } from '@/components/ui';
+import { useMyQueue, type MyQueue } from '@/lib/api';
 import { useOrg } from '@/lib/org';
-import { space, useTheme } from '@/lib/theme';
+import { font, radius, shadow, space, useTheme } from '@/lib/theme';
 import { fmtDateTime } from '@/lib/time';
 import { useQueueActions } from '@/lib/useQueueActions';
 
 export default function Home() {
-  const { t, i18n } = useTranslation();
-  const c = useTheme();
-  const { current } = useOrg();
-  const q = useMyQueues(current?.org_id);
+  const { t } = useTranslation();
+  const { current, isAdmin } = useOrg();
+  const q = useMyQueue(current?.org_id);
   const actions = useQueueActions();
 
-  if (q.isLoading || !current) return <Loading label={t('common.loading')} />;
-  const queues = q.data ?? [];
-  const offers = queues.filter((x) => x.state === 'offered');
+  if (q.isLoading || !current) return <Loading label={t('common.loading')} cards={1} />;
+  const me = q.data;
 
   return (
     <Screen edges={['top']} refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={() => q.refetch()} />}>
+      <DevAccountSwitcher />
       <OrgSwitcher />
       <H1>{t('home.title')}</H1>
       {actions.error ? <Banner kind="error">{actions.error}</Banner> : null}
-      {offers.map((o) => (
-        <Banner key={o.offer_id} kind="warning">
-          <Body style={{ fontWeight: '700' }}>{t('home.offer_waiting', { queue: o.queue_name })}</Body>
-          <Gap size={space.sm} />
-          <Button
-            testID={`view-offer-${o.queue_id}`}
-            title={t('home.view_offer')}
-            icon="flash"
-            onPress={() => router.push(`/offer/${o.offer_id}`)}
+
+      {!me || me.state === 'no_profession' || !me.profession ? (
+        <Card>
+          <Empty
+            icon="person-circle-outline"
+            title={isAdmin ? t('home.manager_title') : t('home.no_profession_title')}
+            message={isAdmin ? t('home.manager_body') : t('home.no_profession_body')}
           />
-        </Banner>
-      ))}
-      {queues.length === 0 ? <Empty title={t('home.no_queues')} message={t('home.no_queues_help')} icon="people-outline" /> : null}
-      {queues.map((item) => (
-        <QueueCard key={item.queue_id} item={item} tz={current.org.timezone} locale={i18n.language} actions={actions} />
-      ))}
-      <Small style={{ textAlign: 'center', marginTop: space.md }}>{t('home.live_hint')}</Small>
+          {isAdmin ? <Button title={t('home.go_to_admin')} icon="grid-outline" onPress={() => router.push('/admin')} /> : null}
+        </Card>
+      ) : (
+        <Hero me={me} tz={current.org.timezone} actions={actions} />
+      )}
+
+      {me?.profession ? <HowItWorks /> : null}
     </Screen>
   );
 }
 
-function QueueCard({
-  item,
-  tz,
-  locale,
-  actions,
-}: {
-  item: MyQueue;
-  tz: string;
-  locale: string;
-  actions: ReturnType<typeof useQueueActions>;
-}) {
-  const { t } = useTranslation();
+function Hero({ me, tz, actions }: { me: MyQueue; tz: string; actions: ReturnType<typeof useQueueActions> }) {
+  const { t, i18n } = useTranslation();
   const c = useTheme();
-  const inQueue = item.state === 'waiting' || item.state === 'paused' || item.state === 'offered';
-  const positionText = inQueue
-    ? item.lottery_pending
-      ? t('home.lottery_pending', { when: fmtDateTime(item.lottery_ends_at, tz, locale) })
-      : t('home.position', { position: item.queue_position, total: item.queue_total })
-    : item.state === 'assigned'
-      ? t('home.assigned_hint')
-      : t('home.not_in_queue', { total: item.queue_total });
+  const profession = me.profession!;
+  const total = me.queue_total ?? 0;
 
   return (
-    <Card testID={`queue-card-${item.queue_name}`}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${item.queue_name}. ${t(`states.${item.state}`)}. ${positionText}`}
-        accessibilityHint={t('home.open_queue_hint')}
-        onPress={() => router.push(`/queue/${item.queue_id}`)}
-      >
-        <View style={styles.header}>
-          <Body style={styles.name}>{item.queue_name}</Body>
-          <QueueStateBadge state={item.state} />
-        </View>
-        <Body
-          testID={`position-${item.queue_name}`}
-          style={[styles.position, { color: inQueue && !item.lottery_pending ? c.primary : c.text }]}
-        >
-          {positionText}
-        </Body>
-        <Small>{t('home.filled_30d', { count: item.filled_30d })}</Small>
-      </Pressable>
-      {item.state === 'not_joined' ? (
+    <View testID="home-hero" style={[styles.hero, shadow.raised, { backgroundColor: c.surface }]}>
+      <View style={styles.heroHeader}>
+        <ProfessionTag profession={profession} plural />
+        <QueueStateBadge state={me.state!} />
+      </View>
+
+      {me.state === 'not_joined' ? (
         <>
-          <Gap size={space.sm} />
-          {item.needs_approval ? (
-            <Small>{t('queue.needs_approval')}</Small>
-          ) : item.cooldown_until ? (
-            <Small>{t('queue.cooldown_until', { when: fmtDateTime(item.cooldown_until, tz, locale) })}</Small>
-          ) : (
+          <Text
+            testID="waiting-count"
+            accessibilityRole="header"
+            style={[styles.heroTitle, { color: c.text }]}
+            maxFontSizeMultiplier={1.6}
+          >
+            {t(`home.waiting_${profession}`, { count: total })}
+          </Text>
+          <Body muted style={{ marginBottom: space.xl }}>{t('home.join_hint')}</Body>
+          <Button
+            testID="join-queue"
+            size="lg"
+            icon="enter-outline"
+            title={t('home.join_cta')}
+            onPress={() => actions.join(me)}
+            loading={actions.busy === 'join'}
+          />
+        </>
+      ) : null}
+
+      {me.state === 'waiting' || me.state === 'paused' ? (
+        <>
+          <Overline>{t('home.your_position')}</Overline>
+          <View
+            accessible
+            accessibilityRole="text"
+            accessibilityLabel={t('home.position_a11y', { position: me.queue_position, total })}
+            testID="queue-position"
+            style={styles.positionRow}
+          >
+            <Text testID="position-number" style={[styles.positionNumber, { color: c.primaryStrong }]} maxFontSizeMultiplier={1.4}>
+              #{me.queue_position}
+            </Text>
+            <Text testID="position-total" style={[styles.positionTotal, { color: c.textMuted }]} maxFontSizeMultiplier={1.6}>
+              {t('home.of_total', { total })}
+            </Text>
+          </View>
+          <View style={styles.liveRow}>
+            <View style={[styles.liveDot, { backgroundColor: c.success }]} />
+            <Small>{t('home.live_hint')}</Small>
+          </View>
+          {me.joined_at ? <Small style={{ marginTop: space.xs }}>{t('home.joined_at', { when: fmtDateTime(me.joined_at, tz, i18n.language) })}</Small> : null}
+
+          {me.state === 'paused' ? (
+            <>
+              <Gap />
+              <Banner kind="warning">
+                <Body style={{ fontFamily: font.semibold }}>{t('home.paused_title')}</Body>
+                <Body>{t('home.paused_body', { position: me.queue_position })}</Body>
+              </Banner>
+              <Button testID="resume" title={t('queue.resume')} icon="play-outline" onPress={() => actions.resume(me)} loading={actions.busy === 'resume'} />
+            </>
+          ) : null}
+
+          <Gap size={space.xl} />
+          <View style={styles.secondaryRow}>
+            {me.state === 'waiting' ? (
+              <Button
+                testID="pause"
+                title={t('queue.pause')}
+                variant="secondary"
+                icon="pause-outline"
+                onPress={() => actions.pause(me)}
+                loading={actions.busy === 'pause'}
+                accessibilityHint={t('queue.pause_hint')}
+                style={{ flex: 1 }}
+              />
+            ) : null}
             <Button
-              testID={`join-${item.queue_name}`}
-              title={t('queue.join')}
-              variant="secondary"
-              onPress={() => actions.join(item)}
-              loading={actions.busy === 'join'}
+              testID="leave-queue"
+              title={t('queue.leave')}
+              variant="dangerOutline"
+              icon="exit-outline"
+              onPress={() => actions.leave(me)}
+              loading={actions.busy === 'leave'}
+              accessibilityHint={t('queue.leave_hint')}
+              style={{ flex: 1 }}
             />
-          )}
+          </View>
         </>
       ) : null}
-      {item.state === 'paused' ? (
+
+      {me.state === 'assigned' && me.shift_starts_at && me.shift_ends_at ? (
         <>
-          <Gap size={space.sm} />
-          <Button title={t('queue.resume')} variant="secondary" onPress={() => actions.resume(item)} loading={actions.busy === 'resume'} />
+          <View style={styles.assignedTitle}>
+            <Ionicons name="checkmark-circle" size={28} color={c.success} />
+            <Text accessibilityRole="header" style={[styles.heroTitleSmall, { color: c.text }]}>{t('home.assigned_title')}</Text>
+          </View>
+          <View testID="assigned-shift" style={[styles.shiftBox, { backgroundColor: c.primaryTint }]}>
+            <ShiftDetails startsAt={me.shift_starts_at} endsAt={me.shift_ends_at} tz={tz} unit={me.shift_unit} notes={me.shift_notes} large />
+          </View>
+          <Body muted style={{ marginTop: space.md }}>{t('home.assigned_explainer')}</Body>
+          <Gap />
+          <Button title={t('home.see_my_shifts')} variant="secondary" icon="calendar-outline" onPress={() => router.push('/shifts')} />
         </>
       ) : null}
-    </Card>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.sm, flexWrap: 'wrap' },
-  name: { fontSize: 18, fontWeight: '700', flexShrink: 1 },
-  position: { fontSize: 22, lineHeight: 30, fontWeight: '800', marginVertical: space.sm },
-});
+function HowItWorks() {
+  const { t } = useTranslation();
+  const rules = ['order', 'slots', 'after_shift', 'pause', 'cancel', 'give_back', 'no_reorder', 'privacy'] as const;
+  return (
+    <>
+      <H2>{t('home.how_it_works')}</H2>
+      <Card>
+        {rules.map((r) => (
+          <View key={r} style={{ flexDirection: 'row', gap: space.sm, marginBottom: space.sm }}>
+            <Body muted>•</Body>
+            <Body style={{ flex: 1 }}>{t(`rules.${r}`)}</Body>
+          </View>
+        ))}
+      </Card>
+    </>
+  );
+}
+
+const styles = {
+  hero: { borderRadius: radius.lg, padding: space.xl, marginBottom: space.md },
+  heroHeader: { flexDirection: 'row' as const, justifyContent: 'space-between' as const, alignItems: 'center' as const, gap: space.sm, flexWrap: 'wrap' as const, marginBottom: space.lg },
+  heroTitle: { fontFamily: font.bold, fontSize: 26, lineHeight: 33, marginBottom: space.sm },
+  heroTitleSmall: { fontFamily: font.bold, fontSize: 22, lineHeight: 28, flexShrink: 1 },
+  positionRow: { flexDirection: 'row' as const, alignItems: 'baseline' as const, flexWrap: 'wrap' as const, gap: space.sm, marginTop: space.xs },
+  positionNumber: { fontFamily: font.extrabold, fontSize: 88, lineHeight: 96, letterSpacing: -2 },
+  positionTotal: { fontFamily: font.semibold, fontSize: 24, lineHeight: 30 },
+  liveRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: space.sm, marginTop: space.xs },
+  liveDot: { width: 8, height: 8, borderRadius: 4 },
+  secondaryRow: { flexDirection: 'row' as const, gap: space.sm, flexWrap: 'wrap' as const },
+  assignedTitle: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: space.sm, marginBottom: space.md },
+  shiftBox: { borderRadius: radius.md, padding: space.lg },
+};

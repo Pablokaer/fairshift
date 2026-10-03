@@ -1,23 +1,23 @@
 // Notification copy for push and e-mail, in English and Brazilian Portuguese.
-// Times are always rendered in the organization's timezone.
+// Times are always rendered in the hospital's timezone.
 
 export type Locale = 'en' | 'pt-BR';
 
 type Payload = Record<string, unknown> & {
-  queue_name?: string;
-  org_name?: string;
+  profession?: 'doctor' | 'nurse';
+  previous?: 'doctor' | 'nurse' | null;
   org_timezone?: string;
   starts_at?: string;
   ends_at?: string;
   unit?: string;
-  expires_at?: string;
+  notes?: string;
+  slots?: number;
+  filled?: number;
   position?: number;
-  offer_id?: string;
   shift_id?: string;
   queue_id?: string;
-  token?: string;
-  role?: string;
   reason?: string;
+  restored?: boolean;
 };
 
 export interface Rendered {
@@ -37,182 +37,127 @@ function fmtRange(p: Payload, locale: Locale): string {
   return `${day}, ${t.format(start)}–${t.format(end)}`;
 }
 
-function fmtTime(iso: string | undefined, p: Payload, locale: Locale): string {
-  if (!iso) return '';
-  return new Intl.DateTimeFormat(locale, { timeZone: p.org_timezone || 'UTC', hour: '2-digit', minute: '2-digit' }).format(
-    new Date(iso),
-  );
-}
+const queueName = (p: Payload, l: Locale) =>
+  l === 'pt-BR'
+    ? p.profession === 'nurse' ? 'fila de enfermagem' : 'fila de médicos'
+    : p.profession === 'nurse' ? "nurses' queue" : "doctors' queue";
+const professionName = (x: Payload['profession'] | null | undefined, l: Locale) =>
+  l === 'pt-BR' ? (x === 'nurse' ? 'Enfermagem' : 'Medicina') : x === 'nurse' ? 'Nurse' : 'Doctor';
+const unit = (p: Payload) => (p.unit ? ` · ${p.unit}` : '');
 
 const T = {
   en: {
-    offer_received: (p: Payload, l: Locale) => ({
-      title: `Shift offered: ${p.queue_name}`,
-      body: `${fmtRange(p, l)}${p.unit ? ` · ${p.unit}` : ''}. Accept by ${fmtTime(p.expires_at, p, l)}.`,
-      url: `/offer/${p.offer_id}`,
-    }),
-    offer_expiring: (p: Payload, l: Locale) => ({
-      title: 'Your offer is about to expire',
-      body: `${p.queue_name}: ${fmtRange(p, l)}. Respond before ${fmtTime(p.expires_at, p, l)}.`,
-      url: `/offer/${p.offer_id}`,
-    }),
-    offer_expired: (p: Payload, l: Locale) => ({
-      title: 'Offer expired',
-      body: `The ${p.queue_name} shift (${fmtRange(p, l)}) was offered to the next person. You kept your place.`,
-      url: '/',
-    }),
-    offer_revoked: (p: Payload, l: Locale) => ({
-      title: 'Offer withdrawn',
-      body: `The ${p.queue_name} shift (${fmtRange(p, l)}) is no longer available to you.`,
-      url: '/',
-    }),
     shift_assigned: (p: Payload, l: Locale) => ({
-      title: 'Shift confirmed',
-      body: `You are working ${fmtRange(p, l)}${p.unit ? ` · ${p.unit}` : ''} (${p.queue_name}).`,
+      title: 'You have a shift',
+      body: `${fmtRange(p, l)}${unit(p)}. You were next in the ${queueName(p, l)}.${p.notes ? ` Notes: ${p.notes}` : ''}`,
       url: '/shifts',
     }),
     shift_cancelled: (p: Payload, l: Locale) => ({
       title: 'Shift cancelled',
-      body: `${p.queue_name}: ${fmtRange(p, l)} was cancelled. You are back at your original place in the queue${p.position ? ` (#${p.position})` : ''}.`,
+      body: `${fmtRange(p, l)}${unit(p)} was cancelled. You are back at your original place in the queue${p.position ? ` (#${p.position})` : ''}.`,
       url: '/',
     }),
     shift_updated: (p: Payload, l: Locale) => ({
       title: 'Shift details updated',
-      body: `${p.queue_name}: ${fmtRange(p, l)}. Open the app for the new notes.`,
+      body: `${fmtRange(p, l)}${unit(p)}. Open the app for the new notes.`,
       url: '/shifts',
     }),
-    eligible_to_rejoin: (p: Payload) => ({
+    eligible_to_rejoin: (p: Payload, l: Locale) => ({
       title: 'Your shift is done. Rejoin the queue?',
-      body: `Tap to rejoin ${p.queue_name}. You will join at the end.`,
-      url: `/queue/${p.queue_id}`,
-    }),
-    auto_rejoined: (p: Payload) => ({
-      title: 'Back in the queue',
-      body: `Your shift is done and you rejoined ${p.queue_name} automatically (#${p.position}).`,
-      url: `/queue/${p.queue_id}`,
-    }),
-    moved_top3: (p: Payload) => ({
-      title: `You're #${p.position} in ${p.queue_name}`,
-      body: 'You are in the top 3. The next shift may be yours.',
-      url: `/queue/${p.queue_id}`,
-    }),
-    auto_paused: (p: Payload) => ({
-      title: 'You were paused',
-      body: `Several offers in ${p.queue_name} expired without an answer. You kept your place; resume when you are available.`,
-      url: `/queue/${p.queue_id}`,
-    }),
-    removed_from_queue: (p: Payload) => ({
-      title: 'Removed from a queue',
-      body: `An admin removed you from ${p.queue_name}. Reason: ${p.reason ?? ''}`,
+      body: `Tap to rejoin the ${queueName(p, l)}. You will join at the end.`,
       url: '/',
     }),
-    pool_added: (p: Payload) => ({ title: 'New queue available', body: `You can now join ${p.queue_name}.`, url: `/queue/${p.queue_id}` }),
-    pool_removed: (p: Payload) => ({ title: 'Queue access removed', body: `You are no longer eligible for ${p.queue_name}.`, url: '/' }),
-    rejoin_allowed: (p: Payload) => ({ title: 'You can rejoin', body: `An admin allowed you to rejoin ${p.queue_name}.`, url: `/queue/${p.queue_id}` }),
-    no_show_recorded: (p: Payload, l: Locale) => ({
-      title: 'No-show recorded',
-      body: `${p.queue_name}: ${fmtRange(p, l)} was marked as a no-show.`,
-      url: '/shifts',
+    auto_rejoined: (p: Payload, l: Locale) => ({
+      title: 'Back in the queue',
+      body: `Your shift is done and you rejoined the ${queueName(p, l)} automatically (#${p.position}).`,
+      url: '/',
     }),
-    shift_unfilled: (p: Payload, l: Locale) => ({
-      title: 'Shift unfilled',
-      body: `Nobody in ${p.queue_name} accepted ${fmtRange(p, l)}.`,
-      url: '/admin/shifts',
+    moved_top3: (p: Payload, l: Locale) => ({
+      title: `You're #${p.position} in the ${queueName(p, l)}`,
+      body: 'You are in the top 3. The next shift may be yours.',
+      url: '/',
     }),
-    withdrawal: (p: Payload, l: Locale) => ({
+    removed_from_queue: (p: Payload, l: Locale) => ({
+      title: 'Removed from the queue',
+      body: `A manager removed you from the ${queueName(p, l)}. Reason: ${p.reason ?? ''}`,
+      url: '/',
+    }),
+    profession_changed: (p: Payload, l: Locale) => ({
+      title: 'Your profession was updated',
+      body: `A manager set your profession to ${professionName(p.profession, l)}. Join your new queue from the home screen.`,
+      url: '/',
+    }),
+    shift_short: (p: Payload, l: Locale) => ({
+      title: 'Shift not fully staffed',
+      body: `${fmtRange(p, l)}${unit(p)}: ${p.filled ?? 0} of ${p.slots} slots filled. The rest fill automatically as people join the ${queueName(p, l)}.`,
+      url: `/admin/shifts/${p.shift_id}`,
+    }),
+    shift_started_short: (p: Payload, l: Locale) => ({
+      title: 'Shift started short-staffed',
+      body: `${fmtRange(p, l)}${unit(p)} started with ${p.filled ?? 0} of ${p.slots} slots filled.`,
+      url: `/admin/shifts/${p.shift_id}`,
+    }),
+    shift_given_back: (p: Payload, l: Locale) => ({
       title: 'A shift was given back',
-      body: `${p.queue_name}: ${fmtRange(p, l)} is being re-offered.`,
-      url: '/admin/shifts',
-    }),
-    invite: (p: Payload) => ({
-      title: `You're invited to ${p.org_name}`,
-      subject: `Invitation to join ${p.org_name} on FairShift`,
-      body: `You have been invited to join ${p.org_name} on FairShift, the fair queue for extra shifts.`,
+      body: `${fmtRange(p, l)}${unit(p)}: the slot went to the next person in the ${queueName(p, l)}.`,
+      url: `/admin/shifts/${p.shift_id}`,
     }),
   },
   'pt-BR': {
-    offer_received: (p: Payload, l: Locale) => ({
-      title: `Plantão oferecido: ${p.queue_name}`,
-      body: `${fmtRange(p, l)}${p.unit ? ` · ${p.unit}` : ''}. Aceite até ${fmtTime(p.expires_at, p, l)}.`,
-      url: `/offer/${p.offer_id}`,
-    }),
-    offer_expiring: (p: Payload, l: Locale) => ({
-      title: 'Sua oferta está prestes a expirar',
-      body: `${p.queue_name}: ${fmtRange(p, l)}. Responda antes de ${fmtTime(p.expires_at, p, l)}.`,
-      url: `/offer/${p.offer_id}`,
-    }),
-    offer_expired: (p: Payload, l: Locale) => ({
-      title: 'Oferta expirada',
-      body: `O plantão de ${p.queue_name} (${fmtRange(p, l)}) foi oferecido à próxima pessoa. Você manteve sua posição.`,
-      url: '/',
-    }),
-    offer_revoked: (p: Payload, l: Locale) => ({
-      title: 'Oferta retirada',
-      body: `O plantão de ${p.queue_name} (${fmtRange(p, l)}) não está mais disponível para você.`,
-      url: '/',
-    }),
     shift_assigned: (p: Payload, l: Locale) => ({
-      title: 'Plantão confirmado',
-      body: `Você trabalha ${fmtRange(p, l)}${p.unit ? ` · ${p.unit}` : ''} (${p.queue_name}).`,
+      title: 'Você tem um plantão',
+      body: `${fmtRange(p, l)}${unit(p)}. Você era o próximo da ${queueName(p, l)}.${p.notes ? ` Observações: ${p.notes}` : ''}`,
       url: '/shifts',
     }),
     shift_cancelled: (p: Payload, l: Locale) => ({
       title: 'Plantão cancelado',
-      body: `${p.queue_name}: ${fmtRange(p, l)} foi cancelado. Você voltou à sua posição original na fila${p.position ? ` (nº ${p.position})` : ''}.`,
+      body: `${fmtRange(p, l)}${unit(p)} foi cancelado. Você voltou à sua posição original na fila${p.position ? ` (nº ${p.position})` : ''}.`,
       url: '/',
     }),
     shift_updated: (p: Payload, l: Locale) => ({
       title: 'Detalhes do plantão atualizados',
-      body: `${p.queue_name}: ${fmtRange(p, l)}. Abra o app para ver as novas observações.`,
+      body: `${fmtRange(p, l)}${unit(p)}. Abra o app para ver as novas observações.`,
       url: '/shifts',
     }),
-    eligible_to_rejoin: (p: Payload) => ({
+    eligible_to_rejoin: (p: Payload, l: Locale) => ({
       title: 'Seu plantão terminou. Voltar para a fila?',
-      body: `Toque para entrar de novo em ${p.queue_name}. Você entrará no final.`,
-      url: `/queue/${p.queue_id}`,
-    }),
-    auto_rejoined: (p: Payload) => ({
-      title: 'De volta à fila',
-      body: `Seu plantão terminou e você voltou automaticamente para ${p.queue_name} (nº ${p.position}).`,
-      url: `/queue/${p.queue_id}`,
-    }),
-    moved_top3: (p: Payload) => ({
-      title: `Você é o nº ${p.position} em ${p.queue_name}`,
-      body: 'Você está entre os 3 primeiros. O próximo plantão pode ser seu.',
-      url: `/queue/${p.queue_id}`,
-    }),
-    auto_paused: (p: Payload) => ({
-      title: 'Você foi pausado',
-      body: `Várias ofertas em ${p.queue_name} expiraram sem resposta. Você manteve sua posição; retome quando estiver disponível.`,
-      url: `/queue/${p.queue_id}`,
-    }),
-    removed_from_queue: (p: Payload) => ({
-      title: 'Removido de uma fila',
-      body: `Um administrador removeu você de ${p.queue_name}. Motivo: ${p.reason ?? ''}`,
+      body: `Toque para entrar de novo na ${queueName(p, l)}. Você entrará no final.`,
       url: '/',
     }),
-    pool_added: (p: Payload) => ({ title: 'Nova fila disponível', body: `Agora você pode entrar em ${p.queue_name}.`, url: `/queue/${p.queue_id}` }),
-    pool_removed: (p: Payload) => ({ title: 'Acesso à fila removido', body: `Você não é mais elegível para ${p.queue_name}.`, url: '/' }),
-    rejoin_allowed: (p: Payload) => ({ title: 'Você pode voltar', body: `Um administrador permitiu que você volte para ${p.queue_name}.`, url: `/queue/${p.queue_id}` }),
-    no_show_recorded: (p: Payload, l: Locale) => ({
-      title: 'Falta registrada',
-      body: `${p.queue_name}: ${fmtRange(p, l)} foi marcado como falta.`,
-      url: '/shifts',
+    auto_rejoined: (p: Payload, l: Locale) => ({
+      title: 'De volta à fila',
+      body: `Seu plantão terminou e você voltou automaticamente para a ${queueName(p, l)} (nº ${p.position}).`,
+      url: '/',
     }),
-    shift_unfilled: (p: Payload, l: Locale) => ({
-      title: 'Plantão não preenchido',
-      body: `Ninguém em ${p.queue_name} aceitou ${fmtRange(p, l)}.`,
-      url: '/admin/shifts',
+    moved_top3: (p: Payload, l: Locale) => ({
+      title: `Você é o nº ${p.position} na ${queueName(p, l)}`,
+      body: 'Você está entre os 3 primeiros. O próximo plantão pode ser seu.',
+      url: '/',
     }),
-    withdrawal: (p: Payload, l: Locale) => ({
+    removed_from_queue: (p: Payload, l: Locale) => ({
+      title: 'Removido da fila',
+      body: `Um gestor removeu você da ${queueName(p, l)}. Motivo: ${p.reason ?? ''}`,
+      url: '/',
+    }),
+    profession_changed: (p: Payload, l: Locale) => ({
+      title: 'Sua profissão foi atualizada',
+      body: `Um gestor definiu sua profissão como ${professionName(p.profession, l)}. Entre na sua nova fila pela tela inicial.`,
+      url: '/',
+    }),
+    shift_short: (p: Payload, l: Locale) => ({
+      title: 'Plantão sem equipe completa',
+      body: `${fmtRange(p, l)}${unit(p)}: ${p.filled ?? 0} de ${p.slots} vagas preenchidas. As demais serão preenchidas automaticamente quando houver gente na ${queueName(p, l)}.`,
+      url: `/admin/shifts/${p.shift_id}`,
+    }),
+    shift_started_short: (p: Payload, l: Locale) => ({
+      title: 'Plantão começou incompleto',
+      body: `${fmtRange(p, l)}${unit(p)} começou com ${p.filled ?? 0} de ${p.slots} vagas preenchidas.`,
+      url: `/admin/shifts/${p.shift_id}`,
+    }),
+    shift_given_back: (p: Payload, l: Locale) => ({
       title: 'Um plantão foi devolvido',
-      body: `${p.queue_name}: ${fmtRange(p, l)} está sendo oferecido novamente.`,
-      url: '/admin/shifts',
-    }),
-    invite: (p: Payload) => ({
-      title: `Convite para ${p.org_name}`,
-      subject: `Convite para entrar em ${p.org_name} no FairShift`,
-      body: `Você foi convidado para entrar em ${p.org_name} no FairShift, a fila justa para plantões extras.`,
+      body: `${fmtRange(p, l)}${unit(p)}: a vaga foi para a próxima pessoa da ${queueName(p, l)}.`,
+      url: `/admin/shifts/${p.shift_id}`,
     }),
   },
 } as const;
@@ -227,10 +172,10 @@ export function render(template: string, payload: Payload, locale: Locale): Rend
 export function emailHtml(r: Rendered, link: string | undefined, locale: Locale): string {
   const cta = locale === 'pt-BR' ? 'Abrir o FairShift' : 'Open FairShift';
   const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
-  return `<!doctype html><html lang="${locale}"><body style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#10213a;background:#f5f7fa;padding:24px">
+  return `<!doctype html><html lang="${locale}"><body style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#102A3A;background:#F7FAFC;padding:24px">
 <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:12px;padding:24px">
 <h1 style="font-size:20px;margin:0 0 12px">${esc(r.title)}</h1>
 <p style="font-size:16px;line-height:1.5;margin:0 0 20px">${esc(r.body)}</p>
-${link ? `<a href="${esc(link)}" style="display:inline-block;background:#0b5c73;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:600">${cta}</a>` : ''}
+${link ? `<a href="${esc(link)}" style="display:inline-block;background:#0E7C86;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:600">${cta}</a>` : ''}
 </div></body></html>`;
 }

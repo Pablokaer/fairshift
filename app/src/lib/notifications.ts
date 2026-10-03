@@ -25,8 +25,8 @@ export async function registerForPush(): Promise<'registered' | 'denied' | 'unsu
   if (Platform.OS === 'web' || !Device.isDevice) return 'unsupported';
   try {
     if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('offers', {
-        name: 'Shift offers',
+      await Notifications.setNotificationChannelAsync('shifts', {
+        name: 'Shift assignments',
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
       });

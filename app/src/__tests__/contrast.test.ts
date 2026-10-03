@@ -1,4 +1,4 @@
-import { dark, light, type Palette } from '../lib/theme';
+import { light, type Palette } from '../lib/theme';
 
 function luminance(hex: string) {
   const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) =>
@@ -11,32 +11,50 @@ export function contrast(a: string, b: string) {
   return (x + 0.05) / (y + 0.05);
 }
 
+// Every text-on-background combination the UI uses.
 const pairs: [keyof Palette, keyof Palette][] = [
   ['text', 'bg'],
   ['text', 'surface'],
   ['text', 'surfaceAlt'],
+  ['text', 'primaryTint'],
+  ['text', 'warningTint'],
+  ['text', 'dangerTint'],
   ['textMuted', 'bg'],
   ['textMuted', 'surface'],
+  ['textMuted', 'surfaceAlt'],
+  ['textMuted', 'primaryTint'],
+  ['textMuted', 'warningTint'],
   ['primary', 'bg'],
   ['primary', 'surface'],
+  ['primaryStrong', 'surface'],
+  ['primaryStrong', 'surfaceAlt'],
+  ['primaryStrong', 'primaryTint'],
   ['onPrimary', 'primary'],
   ['onDanger', 'danger'],
   ['danger', 'surface'],
+  ['danger', 'dangerTint'],
+  ['dangerText', 'dangerTint'],
   ['success', 'surface'],
+  ['success', 'badgeAssignedBg'],
   ['warning', 'surface'],
+  ['warning', 'warningTint'],
   ['info', 'surface'],
+  ['info', 'surfaceAlt'],
+  ['doctorText', 'doctorBg'],
+  ['nurseText', 'nurseBg'],
   ['badgeWaitingText', 'badgeWaitingBg'],
   ['badgePausedText', 'badgePausedBg'],
-  ['badgeOfferedText', 'badgeOfferedBg'],
   ['badgeAssignedText', 'badgeAssignedBg'],
   ['badgeNeutralText', 'badgeNeutralBg'],
 ];
 
-describe.each([
-  ['light', light],
-  ['dark', dark],
-])('%s theme meets WCAG AA (4.5:1) for text', (_name, p) => {
+describe('light theme meets WCAG AA (4.5:1) for text', () => {
   it.each(pairs)('%s on %s', (fg, bg) => {
-    expect(contrast(p[fg], p[bg])).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(light[fg], light[bg])).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('doctor and nurse tags are distinguishable by colour as well as label and icon', () => {
+    expect(light.doctorBg).not.toBe(light.nurseBg);
+    expect(light.doctorText).not.toBe(light.nurseText);
   });
 });

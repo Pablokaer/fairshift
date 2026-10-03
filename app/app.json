@@ -37,10 +37,11 @@
       [
         "expo-notifications",
         {
-          "color": "#0B5C73",
+          "color": "#0E7C86",
           "defaultChannel": "default"
         }
-      ]
+      ],
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": false

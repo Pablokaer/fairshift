@@ -31,39 +31,36 @@ export function useQueueActions() {
 
   const join = async (q: MyQueue) => {
     const ok = await confirm({
-      title: t('queue.join_title', { queue: q.queue_name }),
+      title: t('queue.join_title', { queue: t(`queue_in_sentence.${q.profession}`) }),
       message: t('queue.join_message', { position: (q.queue_total ?? 0) + 1 }),
       confirmLabel: t('queue.join'),
     });
-    if (ok) await run('join', () => rpc('join_queue', { p_queue: q.queue_id }));
+    if (ok && q.queue_id) await run('join', () => rpc('join_queue', { p_queue: q.queue_id! }));
   };
 
   const leave = async (q: MyQueue) => {
     const ok = await confirm({
       title: t('queue.leave_title'),
-      message:
-        q.state === 'offered'
-          ? t('queue.leave_message_offer', { position: q.queue_position })
-          : t('queue.leave_message', { position: q.queue_position }),
+      message: t('queue.leave_message', { position: q.queue_position }),
       confirmLabel: t('queue.leave'),
       destructive: true,
     });
-    if (ok) await run('leave', () => rpc('leave_queue', { p_queue: q.queue_id }));
+    if (ok && q.queue_id) await run('leave', () => rpc('leave_queue', { p_queue: q.queue_id! }));
   };
 
   const pause = async (q: MyQueue) => {
     const ok = await confirm({
       title: t('queue.pause_title'),
-      message: q.state === 'offered' ? t('queue.pause_message_offer') : t('queue.pause_message'),
+      message: t('queue.pause_message'),
       confirmLabel: t('queue.pause'),
     });
-    if (ok) await run('pause', () => rpc('pause_queue', { p_queue: q.queue_id }));
+    if (ok && q.queue_id) await run('pause', () => rpc('pause_queue', { p_queue: q.queue_id! }));
   };
 
-  const resume = (q: MyQueue) => run('resume', () => rpc('resume_queue', { p_queue: q.queue_id }));
+  const resume = (q: MyQueue) => (q.queue_id ? run('resume', () => rpc('resume_queue', { p_queue: q.queue_id! })) : undefined);
 
   const setAutoRejoin = (q: MyQueue, enabled: boolean) =>
-    run('auto', () => rpc('set_queue_auto_rejoin', { p_queue: q.queue_id, p_enabled: enabled }));
+    q.queue_id ? run('auto', () => rpc('set_queue_auto_rejoin', { p_queue: q.queue_id!, p_enabled: enabled })) : undefined;
 
   return { join, leave, pause, resume, setAutoRejoin, busy, error, clearError: () => setError(null) };
 }
